@@ -1,8 +1,8 @@
 # SMS — School Management System
 
-A multi-tenant school management web app built as a senior-level technical
-assessment. Implements Modules 1–3 of the brief (Auth + RBAC, Schools & Users
-CRUD, Students & Teachers CRUD) plus a Vitest integration suite and placeholder
+A multi-tenant school management web app built as a technical assessment.
+Implements Modules 1–3 of the brief (Auth + RBAC, Schools & Users CRUD,
+Students & Teachers CRUD) plus a Vitest integration suite and placeholder
 pages for the navigation entries that ship with later modules.
 
 ## Stack
