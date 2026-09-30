@@ -59,3 +59,16 @@ export async function writeAuditLog(
     },
   });
 }
+
+/**
+ * Returns the current academic year in `YYYY-YYYY` form. In Bangladesh and
+ * most South-Asian schools the academic year runs Apr–Mar, but we don't try
+ * to encode that policy here — the caller may pass `ACADEMIC_YEAR` via env
+ * (the seed uses 2025-2026) or we fall back to a calendar-year derivation.
+ */
+export function getCurrentAcademicYear(now: Date = new Date()): string {
+  const fromEnv = process.env.ACADEMIC_YEAR;
+  if (fromEnv && /^\d{4}-\d{4}$/.test(fromEnv)) return fromEnv;
+  const y = now.getUTCFullYear();
+  return `${y}-${y + 1}`;
+}

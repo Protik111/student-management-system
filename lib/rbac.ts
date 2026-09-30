@@ -60,6 +60,8 @@ export const ROLE_NAV: Record<Role, { href: string; label: string }[]> = {
     { href: "/super-admin", label: "Overview" },
     { href: "/super-admin/schools", label: "Schools" },
     { href: "/super-admin/users", label: "Users" },
+    { href: "/super-admin/students", label: "Students" },
+    { href: "/super-admin/teachers", label: "Teachers" },
   ],
   school_admin: [
     { href: "/school-admin", label: "Overview" },

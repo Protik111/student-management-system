@@ -12,6 +12,9 @@ interface ModuleCard {
   icon: React.ComponentType<{ className?: string }>;
   permission: Permission;
   href: string;
+  /** Module number that delivered this surface. Used for "Module N" tag at the
+   *  bottom of each card. Undefined = unshipped (renders "Coming soon"). */
+  moduleNumber?: number;
 }
 
 const MODULE_CARDS: ModuleCard[] = [
@@ -21,6 +24,7 @@ const MODULE_CARDS: ModuleCard[] = [
     icon: School,
     permission: "manage_schools",
     href: "/super-admin/schools",
+    moduleNumber: 2,
   },
   {
     title: "Users",
@@ -28,6 +32,7 @@ const MODULE_CARDS: ModuleCard[] = [
     icon: UserCog,
     permission: "manage_users",
     href: "/school-admin/users",
+    moduleNumber: 2,
   },
   {
     title: "Students",
@@ -35,6 +40,7 @@ const MODULE_CARDS: ModuleCard[] = [
     icon: GraduationCap,
     permission: "manage_students",
     href: "/school-admin/students",
+    moduleNumber: 3,
   },
   {
     title: "Teachers",
@@ -42,6 +48,7 @@ const MODULE_CARDS: ModuleCard[] = [
     icon: Users,
     permission: "manage_teachers",
     href: "/school-admin/teachers",
+    moduleNumber: 3,
   },
   {
     title: "Classes & Subjects",
@@ -136,7 +143,9 @@ export default async function RoleOverview({ role, tagline }: RoleOverviewProps)
                     <p className="mt-1 text-default text-text-muted">{m.description}</p>
                   </div>
                   <p className="mt-auto text-meta text-text-subtle">
-                    Module 2 — coming next
+                    {m.moduleNumber
+                      ? `Module ${m.moduleNumber} — available`
+                      : "Coming soon"}
                   </p>
                 </Card>
               );

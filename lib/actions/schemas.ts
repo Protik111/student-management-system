@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ROLES } from "@/lib/db/types";
+import { GENDERS, ROLES } from "@/lib/db/types";
 
 /* ─── Shared primitives ──────────────────────────────────────────────────── */
 
@@ -127,3 +127,214 @@ export const resetPasswordResponseSchema = z.object({
   userId: z.string(),
   tempPassword: z.string(),
 });
+
+/* ─── Student schemas ────────────────────────────────────────────────────── */
+
+const isoDateString = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Use YYYY-MM-DD")
+  .refine((v) => v === "" || !Number.isNaN(new Date(v).getTime()), "Invalid date")
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
+function dateOnlyToDate(v: unknown): Date | undefined {
+  if (typeof v !== "string" || v === "") return undefined;
+  return new Date(v + "T00:00:00.000Z");
+}
+
+export const studentCreateSchema = z
+  .object({
+    // User account
+    email: z.string().trim().toLowerCase().email("Invalid email").max(254),
+    fullName: trimmedString(120).min(2, "Full name is required"),
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    avatarUrl: optionalUrl,
+    password: passwordSchema.optional(),
+
+    // School (required; super admin may pick any, school admin is forced)
+    schoolId: z.string().min(1, "School is required"),
+
+    // Roles (locked to student in Module 3 — but include for forward-compat)
+    primaryRole: z.literal("student"),
+    roles: z.array(z.enum(ROLES)).min(1, "At least one role is required"),
+
+    // Student profile
+    admissionNo: trimmedString(40).min(1, "Admission number is required"),
+    dateOfBirth: isoDateString,
+    gender: z.enum(GENDERS).optional(),
+    currentClassId: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    guardianName: trimmedString(60).optional(),
+    guardianPhone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    address: trimmedString(500).optional(),
+
+    // Enrollment toggle (only meaningful when currentClassId is set)
+    enrollInCurrentClass: z.boolean().default(false),
+  })
+  .refine((v) => v.roles.includes("student"), {
+    message: "Student role is required",
+    path: ["roles"],
+  })
+  .refine((v) => v.enrollInCurrentClass !== true || Boolean(v.currentClassId), {
+    message: "Pick a class first or uncheck 'Enroll now'",
+    path: ["enrollInCurrentClass"],
+  })
+  .refine((v) => typeof v.password === "string" && v.password.length >= 8, {
+    message: "Password must be at least 8 characters",
+    path: ["password"],
+  })
+  .transform((v) => ({
+    ...v,
+    dateOfBirth: dateOnlyToDate(v.dateOfBirth),
+  }));
+
+export type StudentCreateInput = z.infer<typeof studentCreateSchema>;
+/** Pre-transform input shape — used by client forms that hold `dateOfBirth`
+ *  as an ISO YYYY-MM-DD string. The server schema converts to Date. */
+export type StudentCreateFormInput = z.input<typeof studentCreateSchema>;
+
+export const studentUpdateSchema = z
+  .object({
+    id: z.string().min(1),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    fullName: trimmedString(120).optional(),
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    avatarUrl: optionalUrl,
+    admissionNo: trimmedString(40).optional(),
+    dateOfBirth: isoDateString,
+    gender: z.enum(GENDERS).optional(),
+    currentClassId: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    guardianName: trimmedString(60).optional(),
+    guardianPhone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    address: trimmedString(500).optional(),
+    /** Set to true to also write a new Enrollment row for currentClassId. */
+    enrollInCurrentClass: z.boolean().default(false),
+    isActive: z.boolean().optional(),
+  })
+  .transform((v) => ({
+    ...v,
+    dateOfBirth: dateOnlyToDate(v.dateOfBirth),
+  }));
+
+export type StudentUpdateInput = z.infer<typeof studentUpdateSchema>;
+export type StudentUpdateFormInput = z.input<typeof studentUpdateSchema>;
+
+/* ─── Teacher schemas ────────────────────────────────────────────────────── */
+
+export const teacherCreateSchema = z
+  .object({
+    // User account
+    email: z.string().trim().toLowerCase().email("Invalid email").max(254),
+    fullName: trimmedString(120).min(2, "Full name is required"),
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    avatarUrl: optionalUrl,
+    password: passwordSchema.optional(),
+
+    schoolId: z.string().min(1, "School is required"),
+    primaryRole: z.literal("teacher"),
+    roles: z.array(z.enum(ROLES)).min(1, "At least one role is required"),
+
+    // Teacher profile
+    employeeId: trimmedString(40).min(1, "Employee ID is required"),
+    qualification: trimmedString(120).optional(),
+    specialization: trimmedString(120).optional(),
+    salary: z
+      .number()
+      .int("Salary must be a whole number")
+      .min(0, "Salary cannot be negative")
+      .optional(),
+    hireDate: isoDateString,
+  })
+  .refine((v) => v.roles.includes("teacher"), {
+    message: "Teacher role is required",
+    path: ["roles"],
+  })
+  .refine((v) => typeof v.password === "string" && v.password.length >= 8, {
+    message: "Password must be at least 8 characters",
+    path: ["password"],
+  })
+  .transform((v) => ({
+    ...v,
+    hireDate: dateOnlyToDate(v.hireDate),
+  }));
+
+export type TeacherCreateInput = z.infer<typeof teacherCreateSchema>;
+export type TeacherCreateFormInput = z.input<typeof teacherCreateSchema>;
+
+export const teacherUpdateSchema = z
+  .object({
+    id: z.string().min(1),
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    fullName: trimmedString(120).optional(),
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    avatarUrl: optionalUrl,
+    employeeId: trimmedString(40).optional(),
+    qualification: trimmedString(120).optional(),
+    specialization: trimmedString(120).optional(),
+    salary: z
+      .number()
+      .int()
+      .min(0)
+      .optional(),
+    hireDate: isoDateString,
+    isActive: z.boolean().optional(),
+  })
+  .transform((v) => ({
+    ...v,
+    hireDate: dateOnlyToDate(v.hireDate),
+  }));
+
+export type TeacherUpdateInput = z.infer<typeof teacherUpdateSchema>;
+export type TeacherUpdateFormInput = z.input<typeof teacherUpdateSchema>;
+
+/* ─── Enrollment schemas ─────────────────────────────────────────────────── */
+
+export const enrollmentCreateSchema = z.object({
+  studentId: z.string().min(1),
+  classId: z.string().min(1),
+  academicYear: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{4}$/, "Use YYYY-YYYY"),
+  status: z.enum(["active", "graduated", "transferred", "dropped"]).default("active"),
+});
+
+export type EnrollmentCreateInput = z.infer<typeof enrollmentCreateSchema>;
