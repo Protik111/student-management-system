@@ -30,3 +30,6 @@ Dockerfile
 
 # Project-internal noise
 .qodo
+
+# Local SQLite DB (volume-mounted in container)
+data/

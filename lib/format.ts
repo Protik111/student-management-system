@@ -48,6 +48,32 @@ export function formatNumber(n: number | null | undefined, fallback = "—"): st
   return n.toLocaleString("en-BD");
 }
 
+/**
+ * Format a money value. Salary / fine / fee fields are stored as cents (integers)
+ * to avoid float drift, so callers must pass the value as it sits in the DB.
+ */
+export function formatCurrency(
+  cents: number | null | undefined,
+  currency = "USD",
+  fallback = "—",
+): string {
+  if (cents === null || cents === undefined || !Number.isFinite(cents)) return fallback;
+  const value = cents / 100;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
+}
+
+/** Convert a YYYY-MM-DD string into a Date at UTC midnight. */
+export function parseIsoDateUtc(iso: string): Date {
+  const [y, m, d] = iso.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** Format a Date (or epoch seconds) as YYYY-MM-DD in UTC. */
+export function toIsoDateUtc(d: Date | number): string {
+  const date = typeof d === "number" ? new Date(d * 1000) : d;
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
 // ─── Calendar / month helpers ──────────────────────────────────────────────
 //
 // Dates in this app are typed as `YYYY-MM-DD` (a single day) or `YYYY-MM`

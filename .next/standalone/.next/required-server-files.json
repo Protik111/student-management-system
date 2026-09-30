@@ -106,7 +106,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/home/protik111/Documents/Resources/Courses' Resources/SOFOF Tech/frontend",
+    "outputFileTracingRoot": "/home/protik111/Documents/Resources/Courses' Resources/pen-task-2nd",
     "enablePrerenderSourceMaps": true,
     "cacheComponents": false,
     "cacheLife": {
@@ -321,13 +321,13 @@
     "htmlLimitedBots": "[\\w-]+-Google|Google-[\\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight",
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.ts",
-    "repoRoot": "/home/protik111/Documents/Resources/Courses' Resources/SOFOF Tech/frontend",
+    "repoRoot": "/home/protik111/Documents/Resources/Courses' Resources/pen-task-2nd",
     "turbopack": {
-      "root": "/home/protik111/Documents/Resources/Courses' Resources/SOFOF Tech/frontend"
+      "root": "/home/protik111/Documents/Resources/Courses' Resources/pen-task-2nd"
     },
     "distDirRoot": ".next"
   },
-  "appDir": "/home/protik111/Documents/Resources/Courses' Resources/SOFOF Tech/frontend",
+  "appDir": "/home/protik111/Documents/Resources/Courses' Resources/pen-task-2nd",
   "relativeAppDir": "",
   "files": [
     ".next/package.json",
@@ -346,7 +346,8 @@
     ".next/BUILD_ID",
     ".next/server/next-font-manifest.js",
     ".next/server/next-font-manifest.json",
-    ".next/required-server-files.json"
+    ".next/required-server-files.json",
+    ".next/server/instrumentation.js"
   ],
   "ignore": []
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { errorMessage } from "@/lib/api/types";
 import { useToast } from "@/contexts/ToastContext";
 
 interface UseApiState<T> {
@@ -23,12 +22,23 @@ interface UseApiOptions {
   enabled?: boolean;
 }
 
+/** Pull a string message out of any error shape (Error / string / API error). */
+function errorMessage(err: unknown): string | null {
+  if (!err) return null;
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return null;
+}
+
 /**
  * Generic hook to call an async API function, tracking loading/error state.
  * Re-runs whenever `deps` change (like useEffect deps).
  *
  * @example
- *   const { data, loading, error } = useApi(() => listPackages({ page: 1 }), [page]);
+ *   const { data, loading, error } = useApi(() => listStudents({ page: 1 }), [page]);
  */
 export function useApi<T>(
   fn: () => Promise<T>,

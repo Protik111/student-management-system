@@ -1,8 +1,18 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { errorMessage } from "@/lib/api/types";
 import { useToast } from "@/contexts/ToastContext";
+
+/** Pull a string message out of any error shape. */
+function errorMessage(err: unknown): string | undefined {
+  if (!err) return undefined;
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return undefined;
+}
 
 interface UseConfirmActionOptions<T> {
   /** Title shown on the confirmation dialog. */

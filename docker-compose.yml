@@ -1,0 +1,63 @@
+name: sms
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sms:latest
+    container_name: sms-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # SQLite is persisted inside /app/data which is mounted from the volume below.
+      DATABASE_PATH: /app/data/sms.db
+      # Auth secret — MUST be set in production. Provided via .env file.
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      # Shared secret used by the cron service to hit /api/cron/* endpoints.
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
+      # In-process scheduler — disable so the dedicated `cron` service drives it.
+      ENABLE_CRON: "false"
+    volumes:
+      - sms_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - sms_net
+
+  cron:
+    image: node:22-alpine
+    container_name: sms-cron
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      APP_URL: http://app:3000
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET is required}
+    networks:
+      - sms_net
+    command: >
+      sh -c "apk add --no-cache wget >/dev/null &&
+             echo 'Cron worker started' &&
+             (crond -f -d 0 &) &&
+             printf '0 0 * * *  wget -q -O- --header=\"Authorization: Bearer $$CRON_SECRET\" --post-data=\"\"  $$APP_URL/api/cron/library-mark-overdue\\n
+                     0 23 * * * wget -q -O- --header=\"Authorization: Bearer $$CRON_SECRET\" --post-data=\"\"  $$APP_URL/api/cron/attendance-finalize\\n'
+             >> /etc/crontabs/root &&
+             tail -f /dev/null"
+
+networks:
+  sms_net:
+    driver: bridge
+
+volumes:
+  sms_data:
+    driver: local

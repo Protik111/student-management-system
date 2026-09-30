@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { AuthProvider } from "@/contexts/AuthContext";
+
 import { ToastProvider } from "@/contexts/ToastContext";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import { SessionProvider } from "next-auth/react";
+
 import "./globals.css";
 
 const inter = Inter({
@@ -14,16 +14,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "HajjGo — Hajj & Umrah Booking",
-    template: "%s | HajjGo",
+    default: "SMS — School Management System",
+    template: "%s | SMS",
   },
   description:
-    "Book Hajj, Ramadan Umrah, off-season Umrah, and Ziyarah packages online. Secure seat reservation, transparent payments, and installment plans.",
-  icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
-  },
+    "A multi-tenant School Management System for schools, students, teachers, exams, and library operations.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,11 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-base font-sans text-text">
         <ToastProvider>
-          <AuthProvider>
-            <Header />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </AuthProvider>
+          <SessionProvider>{children}</SessionProvider>
         </ToastProvider>
       </body>
     </html>

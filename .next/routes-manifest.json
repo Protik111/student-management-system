@@ -23,52 +23,12 @@
   },
   "dynamicRoutes": [
     {
-      "page": "/admin/audit-logs/[id]",
-      "regex": "^/admin/audit\\-logs/([^/]+?)(?:/)?$",
+      "page": "/api/auth/[...nextauth]",
+      "regex": "^/api/auth/(.+?)(?:/)?$",
       "routeKeys": {
-        "nxtPid": "nxtPid"
+        "nxtPnextauth": "nxtPnextauth"
       },
-      "namedRegex": "^/admin/audit\\-logs/(?<nxtPid>[^/]+?)(?:/)?$"
-    },
-    {
-      "page": "/admin/bookings/[id]",
-      "regex": "^/admin/bookings/([^/]+?)(?:/)?$",
-      "routeKeys": {
-        "nxtPid": "nxtPid"
-      },
-      "namedRegex": "^/admin/bookings/(?<nxtPid>[^/]+?)(?:/)?$"
-    },
-    {
-      "page": "/admin/packages/[id]",
-      "regex": "^/admin/packages/([^/]+?)(?:/)?$",
-      "routeKeys": {
-        "nxtPid": "nxtPid"
-      },
-      "namedRegex": "^/admin/packages/(?<nxtPid>[^/]+?)(?:/)?$"
-    },
-    {
-      "page": "/dashboard/bookings/[id]",
-      "regex": "^/dashboard/bookings/([^/]+?)(?:/)?$",
-      "routeKeys": {
-        "nxtPid": "nxtPid"
-      },
-      "namedRegex": "^/dashboard/bookings/(?<nxtPid>[^/]+?)(?:/)?$"
-    },
-    {
-      "page": "/dashboard/mock-payment/[paymentId]",
-      "regex": "^/dashboard/mock\\-payment/([^/]+?)(?:/)?$",
-      "routeKeys": {
-        "nxtPpaymentId": "nxtPpaymentId"
-      },
-      "namedRegex": "^/dashboard/mock\\-payment/(?<nxtPpaymentId>[^/]+?)(?:/)?$"
-    },
-    {
-      "page": "/packages/[id]",
-      "regex": "^/packages/([^/]+?)(?:/)?$",
-      "routeKeys": {
-        "nxtPid": "nxtPid"
-      },
-      "namedRegex": "^/packages/(?<nxtPid>[^/]+?)(?:/)?$"
+      "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$"
     }
   ],
   "staticRoutes": [
@@ -91,118 +51,22 @@
       "namedRegex": "^/_not\\-found(?:/)?$"
     },
     {
-      "page": "/admin",
-      "regex": "^/admin(?:/)?$",
+      "page": "/api/cron/attendance-finalize",
+      "regex": "^/api/cron/attendance\\-finalize(?:/)?$",
       "routeKeys": {},
-      "namedRegex": "^/admin(?:/)?$"
+      "namedRegex": "^/api/cron/attendance\\-finalize(?:/)?$"
     },
     {
-      "page": "/admin/audit-logs",
-      "regex": "^/admin/audit\\-logs(?:/)?$",
+      "page": "/api/cron/library-mark-overdue",
+      "regex": "^/api/cron/library\\-mark\\-overdue(?:/)?$",
       "routeKeys": {},
-      "namedRegex": "^/admin/audit\\-logs(?:/)?$"
+      "namedRegex": "^/api/cron/library\\-mark\\-overdue(?:/)?$"
     },
     {
-      "page": "/admin/bookings",
-      "regex": "^/admin/bookings(?:/)?$",
+      "page": "/icon.svg",
+      "regex": "^/icon\\.svg(?:/)?$",
       "routeKeys": {},
-      "namedRegex": "^/admin/bookings(?:/)?$"
-    },
-    {
-      "page": "/admin/cancellations",
-      "regex": "^/admin/cancellations(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/cancellations(?:/)?$"
-    },
-    {
-      "page": "/admin/inventory",
-      "regex": "^/admin/inventory(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/inventory(?:/)?$"
-    },
-    {
-      "page": "/admin/manual-payments",
-      "regex": "^/admin/manual\\-payments(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/manual\\-payments(?:/)?$"
-    },
-    {
-      "page": "/admin/packages",
-      "regex": "^/admin/packages(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/packages(?:/)?$"
-    },
-    {
-      "page": "/admin/packages/new",
-      "regex": "^/admin/packages/new(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/packages/new(?:/)?$"
-    },
-    {
-      "page": "/admin/payments",
-      "regex": "^/admin/payments(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/payments(?:/)?$"
-    },
-    {
-      "page": "/admin/reconciliation",
-      "regex": "^/admin/reconciliation(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/reconciliation(?:/)?$"
-    },
-    {
-      "page": "/admin/refunds",
-      "regex": "^/admin/refunds(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/refunds(?:/)?$"
-    },
-    {
-      "page": "/admin/reports",
-      "regex": "^/admin/reports(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/reports(?:/)?$"
-    },
-    {
-      "page": "/admin/vendors",
-      "regex": "^/admin/vendors(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/admin/vendors(?:/)?$"
-    },
-    {
-      "page": "/dashboard",
-      "regex": "^/dashboard(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/dashboard(?:/)?$"
-    },
-    {
-      "page": "/dashboard/bookings",
-      "regex": "^/dashboard/bookings(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/dashboard/bookings(?:/)?$"
-    },
-    {
-      "page": "/dashboard/bookings/new",
-      "regex": "^/dashboard/bookings/new(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/dashboard/bookings/new(?:/)?$"
-    },
-    {
-      "page": "/dashboard/payments",
-      "regex": "^/dashboard/payments(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/dashboard/payments(?:/)?$"
-    },
-    {
-      "page": "/dashboard/payments/new",
-      "regex": "^/dashboard/payments/new(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/dashboard/payments/new(?:/)?$"
-    },
-    {
-      "page": "/favicon.ico",
-      "regex": "^/favicon\\.ico(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/favicon\\.ico(?:/)?$"
+      "namedRegex": "^/icon\\.svg(?:/)?$"
     },
     {
       "page": "/login",
@@ -211,16 +75,34 @@
       "namedRegex": "^/login(?:/)?$"
     },
     {
-      "page": "/packages",
-      "regex": "^/packages(?:/)?$",
+      "page": "/school-admin",
+      "regex": "^/school\\-admin(?:/)?$",
       "routeKeys": {},
-      "namedRegex": "^/packages(?:/)?$"
+      "namedRegex": "^/school\\-admin(?:/)?$"
     },
     {
-      "page": "/register",
-      "regex": "^/register(?:/)?$",
+      "page": "/student",
+      "regex": "^/student(?:/)?$",
       "routeKeys": {},
-      "namedRegex": "^/register(?:/)?$"
+      "namedRegex": "^/student(?:/)?$"
+    },
+    {
+      "page": "/super-admin",
+      "regex": "^/super\\-admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/super\\-admin(?:/)?$"
+    },
+    {
+      "page": "/teacher",
+      "regex": "^/teacher(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/teacher(?:/)?$"
+    },
+    {
+      "page": "/unauthorized",
+      "regex": "^/unauthorized(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/unauthorized(?:/)?$"
     }
   ],
   "dataRoutes": [],
