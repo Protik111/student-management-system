@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authConfig } from "./auth.config";
-import type { Role } from "@/lib/db/schema";
+import type { Role } from "@/lib/db/types";
 
 const { auth: middlewareAuth } = NextAuth(authConfig);
 

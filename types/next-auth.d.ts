@@ -1,5 +1,5 @@
 import type { DefaultSession } from "next-auth";
-import type { Role } from "@/lib/db/schema";
+import type { Role } from "@/lib/db/types";
 
 declare module "next-auth" {
   interface User {

@@ -1,6 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 
-import type { Role } from "@/lib/db/schema";
+import type { Role } from "@/lib/db/types";
 
 /**
  * Edge-safe NextAuth config. Imported by `middleware.ts` so it must NOT pull

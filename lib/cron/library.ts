@@ -1,7 +1,6 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { Prisma } from "@prisma/client";
 
-import { db } from "@/lib/db";
-import { auditLogs, bookIssues, books } from "@/lib/db/schema";
+import { prisma } from "@/lib/db/prisma";
 
 /**
  * Mark any book issue whose `dueDate` is in the past and whose status is
@@ -10,44 +9,50 @@ import { auditLogs, bookIssues, books } from "@/lib/db/schema";
  * Returns the number of issues that transitioned to overdue.
  */
 export async function markOverdueBooks(now: Date = new Date()): Promise<number> {
-  const dueCutoff = now;
-
-  const candidates = db
-    .select({ id: bookIssues.id, bookId: bookIssues.bookId, status: bookIssues.status })
-    .from(bookIssues)
-    .where(and(eq(bookIssues.status, "issued"), lt(bookIssues.dueDate, dueCutoff)))
-    .all();
+  const candidates = await prisma.bookIssue.findMany({
+    where: {
+      status: "issued",
+      dueDate: { lt: now },
+    },
+    select: { id: true, bookId: true },
+  });
 
   if (candidates.length === 0) return 0;
 
-  // Single transaction: flip status + write audit entry.
-  db.transaction(() => {
-    for (const c of candidates) {
-      db.update(bookIssues).set({ status: "overdue" }).where(eq(bookIssues.id, c.id)).run();
-      db.insert(auditLogs)
-        .values({
-          id: crypto.randomUUID(),
-          actorId: null,
-          schoolId: null,
-          action: "library.mark_overdue",
-          entityType: "book_issue",
-          entityId: c.id,
-          payload: JSON.stringify({ previousStatus: "issued", newStatus: "overdue" }),
-        })
-        .run();
-    }
+  const candidateIds = candidates.map((c) => c.id);
+  const touchedBookIds = Array.from(new Set(candidates.map((c) => c.bookId)));
+
+  // Single transaction: flip status + write audit entries.
+  await prisma.$transaction(async (tx) => {
+    await tx.bookIssue.updateMany({
+      where: { id: { in: candidateIds } },
+      data: { status: "overdue" },
+    });
+
+    await tx.auditLog.createMany({
+      data: candidates.map((c) => ({
+        id: crypto.randomUUID(),
+        actorId: null,
+        schoolId: null,
+        action: "library.mark_overdue",
+        entityType: "book_issue",
+        entityId: c.id,
+        payload: JSON.stringify({ previousStatus: "issued", newStatus: "overdue" }),
+      })),
+    });
   });
 
-  // Also nudge the parent book's availableCopies column (informational)
-  db.update(books)
-    .set({ updatedAt: new Date() })
-    .where(
-      sql`${books.id} IN (${sql.join(
-        candidates.map((c) => sql`${c.bookId}`),
-        sql`, `,
-      )})`,
-    )
-    .run();
+  // Nudge the parent books' updatedAt timestamp (informational — the real
+  // inventory is recomputed lazily by application code).
+  try {
+    await prisma.book.updateMany({
+      where: { id: { in: touchedBookIds } },
+      data: { updatedAt: new Date() },
+    });
+  } catch (err) {
+    if (!(err instanceof Prisma.PrismaClientKnownRequestError)) throw err;
+    // Non-fatal; audit log entry already captures the transition.
+  }
 
   return candidates.length;
 }

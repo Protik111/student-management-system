@@ -1,6 +1,6 @@
-import type { Role } from "@/lib/db/schema";
+import type { Role } from "@/lib/db/types";
 
-export type { Role } from "@/lib/db/schema";
+export type { Role } from "@/lib/db/types";
 
 /**
  * Permission matrix. Each action lists the roles that can perform it.

@@ -1,10 +1,9 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 
 import { auth } from "@/auth";
-import { db } from "@/lib/db";
-import { userRoles, users, type Role } from "@/lib/db/schema";
+import { prisma } from "@/lib/db/prisma";
+import type { Role } from "@/lib/db/types";
 import { can, type Permission } from "@/lib/rbac";
 
 export type SessionUser = {
@@ -26,12 +25,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!su?.id) return null;
 
   // Pull fresh role list from DB (cheap) — primary role comes from JWT
-  const roles = db
-    .select()
-    .from(userRoles)
-    .where(eq(userRoles.userId, su.id))
-    .all()
-    .map((r) => r.role);
+  const roles = await prisma.userRole.findMany({
+    where: { userId: su.id },
+    select: { role: true },
+  });
+  const roleNames = roles.map((r) => r.role);
 
   return {
     id: su.id,
@@ -39,7 +37,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     fullName: su.fullName,
     role: su.role,
     schoolId: su.schoolId,
-    roles: roles.length ? roles : [su.role],
+    roles: roleNames.length ? roleNames : [su.role],
   };
 }
 
@@ -79,6 +77,9 @@ export async function requirePermission(permission: Permission): Promise<Session
 
 /** Look up the canonical schoolId for a user; creates nothing. */
 export async function getSchoolIdForUser(userId: string): Promise<string | null> {
-  const row = db.select().from(users).where(eq(users.id, userId)).limit(1).get();
+  const row = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { schoolId: true },
+  });
   return row?.schoolId ?? null;
 }

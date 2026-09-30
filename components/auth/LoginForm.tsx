@@ -13,7 +13,7 @@ import Button from "@/components/ui/Button";
 import { useToast } from "@/contexts/ToastContext";
 import { cn } from "@/lib/utils";
 import { dashboardPathFor } from "@/lib/rbac";
-import type { Role } from "@/lib/db/schema";
+import type { Role } from "@/lib/db/types";
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),

@@ -1,11 +1,10 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
 
 import { authConfig } from "./auth.config";
-import { db } from "@/lib/db";
-import { userRoles, users, type Role } from "@/lib/db/schema";
+import { prisma } from "@/lib/db/prisma";
+import type { Role } from "@/lib/db/types";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -21,32 +20,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
-        const userRow = db
-          .select()
-          .from(users)
-          .where(eq(users.email, email))
-          .limit(1)
-          .get();
+        const userRow = await prisma.user.findUnique({
+          where: { email },
+        });
 
         if (!userRow || !userRow.isActive) return null;
 
         const ok = await bcrypt.compare(password, userRow.passwordHash);
         if (!ok) return null;
 
-        const roles = db
-          .select()
-          .from(userRoles)
-          .where(eq(userRoles.userId, userRow.id))
-          .all();
-
+        const roles = await prisma.userRole.findMany({
+          where: { userId: userRow.id },
+          select: { role: true },
+        });
         const roleNames = roles.map((r) => r.role);
 
         // Bump lastLoginAt (fire and forget — failures don't block auth)
         try {
-          db.update(users)
-            .set({ lastLoginAt: new Date() })
-            .where(eq(users.id, userRow.id))
-            .run();
+          await prisma.user.update({
+            where: { id: userRow.id },
+            data: { lastLoginAt: new Date() },
+          });
         } catch {
           /* ignore */
         }
