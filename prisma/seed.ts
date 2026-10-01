@@ -42,13 +42,13 @@ async function main() {
       email: "admin@sms.local",
       passwordHash,
       fullName: "Sadia Rahman",
-      primaryRole: "super_admin",
+      primaryRole: "ADMIN",
     },
   });
   await prisma.userRole.upsert({
-    where: { userId_role: { userId: superAdmin.id, role: "super_admin" } },
+    where: { userId_role: { userId: superAdmin.id, role: "ADMIN" } },
     update: {},
-    create: { userId: superAdmin.id, role: "super_admin", schoolId: null },
+    create: { userId: superAdmin.id, role: "ADMIN", schoolId: null },
   });
 
   const schoolAdmin = await prisma.user.upsert({
@@ -61,13 +61,13 @@ async function main() {
       passwordHash,
       fullName: "Mahmud Hossain",
       phone: "+880 1711 111111",
-      primaryRole: "school_admin",
+      primaryRole: "ADMIN",
     },
   });
   await prisma.userRole.upsert({
-    where: { userId_role: { userId: schoolAdmin.id, role: "school_admin" } },
+    where: { userId_role: { userId: schoolAdmin.id, role: "ADMIN" } },
     update: {},
-    create: { userId: schoolAdmin.id, role: "school_admin", schoolId: school.id },
+    create: { userId: schoolAdmin.id, role: "ADMIN", schoolId: school.id },
   });
 
   const teacherUser = await prisma.user.upsert({
@@ -80,13 +80,13 @@ async function main() {
       passwordHash,
       fullName: "Ayesha Siddiqua",
       phone: "+880 1722 222222",
-      primaryRole: "teacher",
+      primaryRole: "TEACHER",
     },
   });
   await prisma.userRole.upsert({
-    where: { userId_role: { userId: teacherUser.id, role: "teacher" } },
+    where: { userId_role: { userId: teacherUser.id, role: "TEACHER" } },
     update: {},
-    create: { userId: teacherUser.id, role: "teacher", schoolId: school.id },
+    create: { userId: teacherUser.id, role: "TEACHER", schoolId: school.id },
   });
 
   const studentUser = await prisma.user.upsert({
@@ -99,13 +99,13 @@ async function main() {
       passwordHash,
       fullName: "Rahim Ahmed",
       phone: "+880 1733 333333",
-      primaryRole: "student",
+      primaryRole: "STUDENT",
     },
   });
   await prisma.userRole.upsert({
-    where: { userId_role: { userId: studentUser.id, role: "student" } },
+    where: { userId_role: { userId: studentUser.id, role: "STUDENT" } },
     update: {},
-    create: { userId: studentUser.id, role: "student", schoolId: school.id },
+    create: { userId: studentUser.id, role: "STUDENT", schoolId: school.id },
   });
 
   console.log("  ✓ users: 4 (super admin, school admin, teacher, student)");
@@ -208,6 +208,128 @@ async function main() {
   });
   console.log(`  ✓ student record: ${student.admissionNo} enrolled in Grade 10-A`);
 
+  // ─── 6b. Fee structure + sample invoice + payment ────────────────────
+  const feeStructure = await prisma.feeStructure.upsert({
+    where: { id: "fee_tuition_q1" },
+    update: {},
+    create: {
+      id: "fee_tuition_q1",
+      schoolId: school.id,
+      classId: klass.id,
+      name: "Term 1 Tuition",
+      amountCents: 300000,
+      frequency: "termly",
+      dueDay: 15,
+      isActive: true,
+    },
+  });
+  console.log(`  ✓ fee structure: ${feeStructure.name}`);
+
+  const invoice = await prisma.invoice.upsert({
+    where: { schoolId_invoiceNo: { schoolId: school.id, invoiceNo: "INV-2025-0001" } },
+    update: {},
+    create: {
+      id: "invoice_1",
+      schoolId: school.id,
+      studentId: student.id,
+      feeStructureId: feeStructure.id,
+      invoiceNo: "INV-2025-0001",
+      description: feeStructure.name,
+      amountCents: feeStructure.amountCents,
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      status: "pending",
+      issuedById: schoolAdmin.id,
+    },
+  });
+  console.log(`  ✓ invoice: ${invoice.invoiceNo}`);
+
+  // ─── 6c. Assessment + submission + grade ─────────────────────────────
+  const assessment = await prisma.assessment.upsert({
+    where: { id: "assessment_1" },
+    update: {},
+    create: {
+      id: "assessment_1",
+      schoolId: school.id,
+      classId: klass.id,
+      subjectId: subject.id,
+      teacherId: teacher.id,
+      title: "Algebra problem set",
+      module: "Module 1: Linear equations",
+      description: "Solve problems 1–20 from chapter 3. Submit as a single PDF.",
+      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      allowResub: true,
+      lateAccepted: true,
+      maxMarks: 50,
+    },
+  });
+  console.log(`  ✓ assessment: ${assessment.title}`);
+
+  // ─── 6d. Sample exam + published result + report card ────────────────
+  const exam = await prisma.exam.upsert({
+    where: {
+      schoolId_name_term_academicYear: {
+        schoolId: school.id,
+        name: "Mid-Term",
+        term: "midterm",
+        academicYear: ACADEMIC_YEAR,
+      },
+    },
+    update: {},
+    create: {
+      schoolId: school.id,
+      name: "Mid-Term",
+      term: "midterm",
+      academicYear: ACADEMIC_YEAR,
+      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      endDate: new Date(Date.now() - 23 * 24 * 60 * 60 * 1000),
+      description: "First-half syllabus exam.",
+    },
+  });
+  const examSubject = await prisma.examSubject.upsert({
+    where: { examId_subjectId_classId: { examId: exam.id, subjectId: subject.id, classId: klass.id } },
+    update: {},
+    create: {
+      examId: exam.id,
+      subjectId: subject.id,
+      classId: klass.id,
+      maxMarks: 50,
+      passMarks: 20,
+    },
+  });
+  await prisma.examResult.upsert({
+    where: { examSubjectId_studentId: { examSubjectId: examSubject.id, studentId: student.id } },
+    update: {},
+    create: {
+      examId: exam.id,
+      examSubjectId: examSubject.id,
+      studentId: student.id,
+      marksObtained: 38,
+      grade: "distinction",
+      published: true,
+      publishedAt: new Date(),
+      publishedById: schoolAdmin.id,
+      enteredBy: teacher.id,
+      remarks: "Excellent work!",
+    },
+  });
+  console.log(`  ✓ exam result: ${exam.name} for ${student.admissionNo} (38/50, distinction, published)`);
+
+  // ─── 6e. Sample notification ─────────────────────────────────────────
+  await prisma.notification.upsert({
+    where: { id: "notif_seed_1" },
+    update: {},
+    create: {
+      id: "notif_seed_1",
+      recipientUserId: studentUser.id,
+      type: "assessment_created",
+      title: `New assessment: ${assessment.title}`,
+      body: `${assessment.module} — due ${assessment.deadline.toLocaleDateString()}.`,
+      link: `/student/assessments/${assessment.id}`,
+      payload: JSON.stringify({ assessmentId: assessment.id }),
+    },
+  });
+  console.log("  ✓ sample notification delivered to student");
+
   // ─── 7. Library book ──────────────────────────────────────────────────
   const book = await prisma.book.upsert({
     where: { id: "book_1" },
@@ -225,6 +347,93 @@ async function main() {
     },
   });
   console.log(`  ✓ book: ${book.title} (${book.totalCopies} copies)`);
+
+  // ─── 8. Course marketplace demo data ──────────────────────────────────
+  const mathCategory = await prisma.category.upsert({
+    where: {
+      schoolId_code: { schoolId: school.id, code: "MATH" },
+    },
+    update: {},
+    create: {
+      id: "category_math",
+      schoolId: school.id,
+      name: "Mathematics",
+      code: "MATH",
+      description: "Numbers, structures, space, and change.",
+    },
+  });
+  const sciCategory = await prisma.category.upsert({
+    where: {
+      schoolId_code: { schoolId: school.id, code: "SCI" },
+    },
+    update: {},
+    create: {
+      id: "category_sci",
+      schoolId: school.id,
+      name: "Science",
+      code: "SCI",
+      description: "Physics, chemistry, biology, and beyond.",
+    },
+  });
+  console.log("  ✓ categories: Mathematics, Science");
+
+  const algebra = await prisma.course.upsert({
+    where: { id: "course_algebra_1" },
+    update: {},
+    create: {
+      id: "course_algebra_1",
+      schoolId: school.id,
+      title: "Algebra I — Foundations",
+      description:
+        "Linear equations, polynomials, and basic functions. Designed as the gateway to the high-school math track.",
+      categoryId: mathCategory.id,
+      teacherId: teacher.id,
+      priceCents: 0,
+      isActive: true,
+    },
+  });
+  const physics = await prisma.course.upsert({
+    where: { id: "course_physics_1" },
+    update: {},
+    create: {
+      id: "course_physics_1",
+      schoolId: school.id,
+      title: "Physics — Mechanics",
+      description:
+        "Forces, energy, and motion. Lab-focused with weekly problem sets.",
+      categoryId: sciCategory.id,
+      teacherId: teacher.id,
+      priceCents: 25000, // 250.00
+      isActive: true,
+    },
+  });
+  console.log("  ✓ courses: Algebra I, Physics (Mechanics)");
+
+  // Self-enrollment demo
+  await prisma.courseEnrollment.upsert({
+    where: {
+      studentId_courseId: { studentId: student.id, courseId: algebra.id },
+    },
+    update: {},
+    create: {
+      studentId: student.id,
+      courseId: algebra.id,
+      source: "enrolled",
+    },
+  });
+  // Admin/teacher-added demo
+  await prisma.courseEnrollment.upsert({
+    where: {
+      studentId_courseId: { studentId: student.id, courseId: physics.id },
+    },
+    update: {},
+    create: {
+      studentId: student.id,
+      courseId: physics.id,
+      source: "added",
+    },
+  });
+  console.log("  ✓ course enrollments: 2 (1 self-enrolled, 1 added)");
 
   console.log("\n✅ Seed complete. Demo credentials:");
   console.log("    super admin  →  admin@sms.local         / admin123");

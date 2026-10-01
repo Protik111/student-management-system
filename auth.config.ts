@@ -23,6 +23,7 @@ export const authConfig = {
       if (
         pathname === "/" ||
         pathname.startsWith("/login") ||
+        pathname.startsWith("/register") ||
         pathname.startsWith("/unauthorized") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/cron") ||

@@ -124,7 +124,7 @@ export async function seedFixtures() {
       email: "actor@test.local",
       fullName: "Test School Admin",
       passwordHash: "test-only-not-real",
-      primaryRole: "school_admin",
+      primaryRole: "ADMIN",
       schoolId: school.id,
       isActive: true,
     },

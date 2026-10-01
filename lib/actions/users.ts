@@ -41,7 +41,7 @@ export async function listUsers(): Promise<UserListItem[]> {
   const actor = await requirePermission("manage_users");
 
   const where =
-    actor.role === "school_admin" && actor.schoolId
+    actor.role === "ADMIN" && actor.schoolId
       ? { schoolId: actor.schoolId }
       : {};
 
@@ -83,30 +83,21 @@ export interface UserFormOptions {
 export async function getUserFormOptions(): Promise<UserFormOptions> {
   const actor = await requirePermission("manage_users");
 
-  if (actor.role === "school_admin") {
-    const school = actor.schoolId
-      ? await prisma.school.findUnique({
-          where: { id: actor.schoolId },
-          select: { id: true, name: true, isActive: true },
-        })
-      : null;
-    return {
-      schools: school ? [school] : [],
-      assignableRoles: ["school_admin", "teacher", "student"],
-      canCreateCrossSchool: false,
-    };
-  }
-
-  const schools = await prisma.school.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, isActive: true },
-  });
+  // All ADMINs work from their own school; they can assign any role within
+  // that school. (Originally the super_admin branch let you pick any school
+  // and assign any role including another super_admin; that distinction is
+  // collapsed under the single ADMIN role, so we always scope to actor.schoolId.)
+  const school = actor.schoolId
+    ? await prisma.school.findUnique({
+        where: { id: actor.schoolId },
+        select: { id: true, name: true, isActive: true },
+      })
+    : null;
 
   return {
-    schools,
+    schools: school ? [school] : [],
     assignableRoles: [...ROLES],
-    canCreateCrossSchool: true,
+    canCreateCrossSchool: false,
   };
 }
 
@@ -128,26 +119,25 @@ export async function createUser(
   }
   const data = parsed.data;
 
-  // School_admin scope: force schoolId, reject super_admin primary
-  if (actor.role === "school_admin") {
-    if (!actor.schoolId) {
-      return fail("Your account is not attached to a school");
+  // ADMIN scope: force schoolId; ADMIN primary users must keep schoolId null.
+  if (!actor.schoolId) {
+    return fail("Your account is not attached to a school");
+  }
+  if (data.primaryRole === "ADMIN") {
+    // Cross-school ADMIN creation disabled by the merge — only same-school ADMINs.
+    if (data.schoolId && data.schoolId !== actor.schoolId) {
+      return fail("Cannot create ADMIN users for another school");
     }
-    if (data.primaryRole === "super_admin") {
-      return fail("School admins cannot create super admins");
-    }
-    data.schoolId = actor.schoolId; // force
+    data.schoolId = actor.schoolId;
   } else {
-    // super_admin: super_admin primary → schoolId must be null
-    if (data.primaryRole === "super_admin" && data.schoolId) {
-      return fail("Super admins cannot be attached to a school", {
-        schoolId: ["Leave empty for super admins"],
-      });
-    }
-    if (data.primaryRole !== "super_admin" && !data.schoolId) {
-      return fail("A school is required for non-super-admin users", {
+    // TEACHER / STUDENT always belong to a school
+    if (!data.schoolId) {
+      return fail("A school is required for non-admin users", {
         schoolId: ["School is required"],
       });
+    }
+    if (data.schoolId !== actor.schoolId) {
+      return fail("You can only create users within your school");
     }
   }
 
@@ -214,8 +204,8 @@ export async function createUser(
       return user;
     });
 
-    revalidatePath("/super-admin/users");
-    revalidatePath("/school-admin/users");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/users");
     return ok({ id: created.id });
   } catch (err) {
     return messageFromError(err, "Failed to create user");
@@ -247,30 +237,12 @@ export async function updateUser(
   });
   if (!existing) return fail("User not found");
 
-  // School_admin scope: must be same school
-  if (actor.role === "school_admin") {
-    if (existing.schoolId !== actor.schoolId) {
-      return fail("You can only edit users in your school");
-    }
-    if (patch.primaryRole === "super_admin") {
-      return fail("School admins cannot promote to super admin");
-    }
-    // Strip fields that cross school boundaries
-    delete (patch as { schoolId?: unknown }).schoolId;
-  } else {
-    // super_admin: if moving a non-super user, schoolId must be valid
-    if (
-      patch.schoolId &&
-      patch.schoolId !== existing.schoolId &&
-      (patch.primaryRole ?? existing.primaryRole) !== "super_admin"
-    ) {
-      const school = await prisma.school.findUnique({
-        where: { id: patch.schoolId },
-        select: { id: true },
-      });
-      if (!school) return fail("Selected school not found", { schoolId: ["Invalid school"] });
-    }
+  // ADMIN scope: must be same school. Cross-school edits disabled by the merge.
+  if (existing.schoolId !== actor.schoolId) {
+    return fail("You can only edit users in your school");
   }
+  // Strip fields that cross school boundaries
+  delete (patch as { schoolId?: unknown }).schoolId;
 
   // Email conflict check
   if (patch.email && patch.email !== existing.email) {
@@ -324,8 +296,8 @@ export async function updateUser(
       });
     });
 
-    revalidatePath("/super-admin/users");
-    revalidatePath("/school-admin/users");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/users");
     return ok({ id });
   } catch (err) {
     return messageFromError(err, "Failed to update user");
@@ -349,7 +321,7 @@ export async function toggleUserActive(
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) return fail("User not found");
 
-  if (actor.role === "school_admin" && existing.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && existing.schoolId !== actor.schoolId) {
     return fail("You can only edit users in your school");
   }
 
@@ -368,8 +340,8 @@ export async function toggleUserActive(
       });
     });
 
-    revalidatePath("/super-admin/users");
-    revalidatePath("/school-admin/users");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/users");
     return ok({ id, isActive: nextActive });
   } catch (err) {
     return messageFromError(err, "Failed to toggle user status");
@@ -389,7 +361,7 @@ export async function resetUserPassword(
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) return fail("User not found");
 
-  if (actor.role === "school_admin" && existing.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && existing.schoolId !== actor.schoolId) {
     return fail("You can only reset passwords for users in your school");
   }
 
@@ -409,8 +381,8 @@ export async function resetUserPassword(
       });
     });
 
-    revalidatePath("/super-admin/users");
-    revalidatePath("/school-admin/users");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/users");
     return ok({ tempPassword });
   } catch (err) {
     return messageFromError(err, "Failed to reset password");

@@ -24,9 +24,9 @@ vi.mock("@/auth", () => ({
       email: "actor@test.local",
       name: "Test School Admin",
       fullName: "Test School Admin",
-      role: "school_admin",
+      role: "ADMIN",
       schoolId: "school_test_1",
-      roles: ["school_admin"],
+      roles: ["ADMIN"],
     },
   }),
 }));
@@ -77,8 +77,8 @@ function makeInput(): FormInput {
     fullName: "Test Student",
     password: "supersecret123",
     schoolId, // ignored by the action once it forces the actor's schoolId
-    primaryRole: "student",
-    roles: ["student"],
+    primaryRole: "STUDENT",
+    roles: ["STUDENT"],
     admissionNo: `ADM-${Date.now()}`,
     enrollInCurrentClass: true,
     currentClassId: "class_test_1",
@@ -114,7 +114,7 @@ describe("createStudent", () => {
     ]);
 
     expect(user?.email).toMatch(/@test\.local$/);
-    expect(user?.primaryRole).toBe("student");
+    expect(user?.primaryRole).toBe("STUDENT");
     expect(user?.schoolId).toBe(schoolId);
     expect(user?.isActive).toBe(true);
 
@@ -122,7 +122,7 @@ describe("createStudent", () => {
     expect(student?.currentClassId).toBe("class_test_1");
     expect(student?.schoolId).toBe(schoolId);
 
-    expect(userRole.map((r) => r.role)).toEqual(["student"]);
+    expect(userRole.map((r) => r.role)).toEqual(["STUDENT"]);
 
     expect(enrollments).toHaveLength(1);
     expect(enrollments[0]?.classId).toBe("class_test_1");

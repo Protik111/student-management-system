@@ -9,26 +9,31 @@ import type {
   Role,
   Gender,
   EnrollmentStatus,
+  EnrollmentSource,
   ExamTerm,
   BookIssueStatus,
   AttendanceStatus,
+  FeeStatus,
+  PaymentMethod,
 } from "@prisma/client";
 
 export type {
   Role,
   Gender,
   EnrollmentStatus,
+  EnrollmentSource,
   ExamTerm,
   BookIssueStatus,
   AttendanceStatus,
+  FeeStatus,
+  PaymentMethod,
 };
 
 /** All role values, as a runtime array (e.g. for select-options UIs). */
 export const ROLES = [
-  "super_admin",
-  "school_admin",
-  "teacher",
-  "student",
+  "ADMIN",
+  "TEACHER",
+  "STUDENT",
 ] as const satisfies readonly Role[];
 
 export const GENDERS = ["male", "female", "other"] as const satisfies readonly Gender[];

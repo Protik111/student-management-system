@@ -8,10 +8,9 @@ const { auth: middlewareAuth } = NextAuth(authConfig);
 
 /** Routes that require a specific primary role. */
 const ROLE_ROUTES: Record<string, Role> = {
-  "/super-admin": "super_admin",
-  "/school-admin": "school_admin",
-  "/teacher": "teacher",
-  "/student": "student",
+  "/admin": "ADMIN",
+  "/teacher": "TEACHER",
+  "/student": "STUDENT",
 };
 
 export default middlewareAuth((req) => {
