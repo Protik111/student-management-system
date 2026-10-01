@@ -11,12 +11,12 @@ pages for the navigation entries that ship with later modules.
 |---|---|
 | Framework | **Next.js 16.3.2** (App Router, Turbopack) + React 19 |
 | Language | **TypeScript** in `strict` mode |
-| Database | **SQLite** via Prisma 7's driver adapter (`@prisma/adapter-better-sqlite3`) |
+| Database | **PostgreSQL 16** via Prisma 7's driver adapter (`@prisma/adapter-pg` + `pg`) |
 | ORM | **Prisma 7.10** with full schema in `prisma/schema.prisma` |
 | Auth | **NextAuth v5 (beta)** — credentials provider, JWT sessions, bcryptjs |
 | Validation | **Zod 4** + react-hook-form on the client |
 | Styling | **Tailwind CSS v4**, Radix primitives, `class-variance-authority`, `lucide-react` |
-| Tests | **Vitest 2** (integration — exercises real Prisma against an isolated SQLite DB) |
+| Tests | **Vitest 2** (integration — exercises real Prisma against a Postgres test schema) |
 
 ## Quick start
 
@@ -24,19 +24,27 @@ pages for the navigation entries that ship with later modules.
 # 1. Install
 npm install
 
-# 2. Provision the local SQLite DB
-npm run db:push
+# 2. Start Postgres (via the bundled docker-compose service)
+docker compose up -d db
+# wait for the healthcheck (≈5s), then verify:
+docker compose ps
 
-# 3. Seed demo data (idempotent — safe to re-run)
+# 3. Copy .env.example → .env (defaults already match the docker-compose service)
+cp .env.example .env
+
+# 4. Push the schema + seed demo data (idempotent — safe to re-run)
+npm run db:push
 npm run db:seed
 
-# 4. Run
+# 5. Run
 npm run dev
 # open http://localhost:3000
 ```
 
-Optional: copy `.env.example` to `.env` and adjust. The defaults point at
-`./data/sms.db` and use `admin123` as the seed password.
+All seed users share the password **`admin123`**. The default `DATABASE_URL`
+points at `postgresql://app:app@localhost:5432/app`; when running inside
+`docker compose up` the host becomes `db` (the service name) — `.env.example`
+has both variants commented.
 
 ## Demo credentials
 
@@ -146,11 +154,12 @@ npm test            # one-shot, exits non-zero on failure
 npm run test:watch  # re-run on change
 ```
 
-The test suite boots an isolated SQLite database at `./data/test-sms.db`,
-pushes the schema, and re-seeds fixtures (`tests/setup.ts`) before each test
-file. The action under test exercises the real Prisma client, real Zod
-schema, real audit-log writes, and real transaction rollback — only `auth()`
-and `next/cache` are stubbed.
+The test suite pushes the current schema into the test Postgres database
+(defaults to the same DB used for local dev; override with `DATABASE_URL_TEST`),
+then truncates every table and re-seeds fixtures (`tests/setup.ts`) before
+each test. The action under test exercises the real Prisma client, real
+Zod schema, real audit-log writes, and real transaction rollback — only
+`auth()` and `next/cache` are stubbed.
 
 What's covered today:
 
@@ -162,33 +171,6 @@ What's covered today:
 What's **not** covered yet: `update*`, `toggle*Active`, the rest of the action
 chain (`schools`, `users`, `teachers`). These will land as their respective
 modules ship.
-
-## What's shipped vs. deferred
-
-Shipped in this pass:
-
-- **Module 1** — Auth (NextAuth credentials, JWT, bcrypt), middleware-driven
-  role routing, login/logout, RBAC primitives.
-- **Module 2** — Schools & Users CRUD (super admin manages schools; school
-  admin manages their school's users; temp-password flow for new accounts).
-- **Module 3** — Students & Teachers CRUD (atomic create with role/profile +
-  enrollment; per-school admissionNo uniqueness; read-only enrollment history).
-- **Finishing pass** — sidebar entries that point at unimplemented features
-  render an honest "Coming soon" page tagged with the module number it ships
-  in, plus the test suite and this README.
-
-Deferred (per the brief's "you are NOT required to implement all features"
-guidance):
-
-- **Module 4** — Classes & Subjects CRUD
-- **Module 5** — Attendance & Exam Results
-- **Module 6** — Library (books, issues)
-- **Module 7** — Reports & Analytics
-- **Module 8** — Notifications
-
-Placeholder pages for these exist at every nav entry; clicking one in the
-sidebar shows a card explaining what the future module will do and which
-module number it ships in.
 
 ## Scripts
 
@@ -208,9 +190,10 @@ module number it ships in.
 
 ## Notes & known constraints
 
-- **SQLite only** — schema uses `String @id` cuid()s everywhere; no PG-only
-  types. Swapping in Postgres is a matter of changing the `provider` and
-  re-pushing.
+- **Postgres via Docker Compose** — local dev expects the `db` service in
+  `docker-compose.yml` to be running. The `app` container talks to it via
+  Compose's internal network (`db:5432`); host-machine tools (Prisma CLI,
+  Studio, Vitest) use `localhost:5432`. Both URLs ship in `.env.example`.
 - **No background jobs** — audit-log writes are inline in the action
   transaction. A queue (BullMQ, etc.) would be the next step if report
   generation or bulk imports land.

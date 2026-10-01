@@ -1,14 +1,16 @@
 import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 /**
- * Singleton PrismaClient. The `PrismaBetterSqlite3` adapter is the only way
- * to connect to SQLite in Prisma 7 (no more built-in driver).
+ * Singleton PrismaClient. The `PrismaPg` adapter is Prisma 7's driver adapter
+ * for PostgreSQL — it owns a `pg` connection pool internally and is the only
+ * way to talk to Postgres from Prisma 7 (no more built-in driver).
  *
  * In Next.js dev, route handlers can be re-instantiated frequently; caching
  * the client on `globalThis` survives hot reloads and prevents the
- * "too many connections" warnings SQLite throws when you open many clients.
+ * "too many connections" warnings that the `pg` pool throws when many
+ * clients open in parallel.
  */
 declare global {
   // eslint-disable-next-line no-var
@@ -20,7 +22,7 @@ function createClient(): PrismaClient {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  const adapter = new PrismaBetterSqlite3({ url: connectionString });
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({
     adapter,
     log:

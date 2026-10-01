@@ -4,7 +4,7 @@
  * We mock `@/auth` so the action thinks it's running inside a real
  * request as a school admin, but everything else — Prisma, the schema
  * validation, the audit-log writes — runs against a fresh isolated
- * SQLite database seeded by `tests/setup.ts`.
+ * Postgres schema pushed + truncated + reseeded by `tests/setup.ts`.
  *
  * The four cases cover:
  *   1. Happy path — atomic create of User + UserRole + Student + Enrollment
@@ -40,8 +40,8 @@ vi.mock("next/cache", () => ({
   revalidateTag: () => {},
 }));
 
-// Pull the prisma client from the test setup (which already opened a
-// connection against `./data/test-sms.db`).
+// Pull the prisma client from the test setup (which already pushed the
+// schema against the test Postgres database).
 import {
   prisma,
   resetTestDb,

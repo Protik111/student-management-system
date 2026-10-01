@@ -2,43 +2,37 @@
  * Vitest setup — runs once before any test file.
  *
  * Goals:
- *   1. Point Prisma at an isolated test SQLite database so we never touch
- *      `./data/sms.db` (the dev/seed database).
- *   2. Wipe + re-create the schema at the start of every test file so each
- *      run starts from a known empty state.
+ *   1. Point Prisma at the test Postgres database (defaults to the local
+ *      dev DB on `localhost:5432`, but `DATABASE_URL_TEST` overrides).
+ *   2. Push the current schema into that DB on startup so the test run
+ *      is self-bootstrapping (you don't have to remember to `db:push`
+ *      before running tests).
  *   3. Provide a small set of fixtures (one school, one class, one
  *      school-admin actor) that the createStudent test depends on.
+ *      `beforeEach` calls `resetTestDb()` + `seedFixtures()` so every
+ *      test starts from a known empty state.
  *
  * The env vars MUST be set before importing prisma; that's why we use a
  * `setupFiles` entry and an `await import` of prisma afterwards.
  */
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import path from "node:path";
 
-const TEST_DB_DIR = path.resolve(__dirname, "../data");
-const TEST_DB_PATH = path.join(TEST_DB_DIR, "test-sms.db");
-
-process.env.DATABASE_URL = `file:${TEST_DB_PATH}`;
+// Default to the same Postgres the dev environment uses. Override with
+// `DATABASE_URL_TEST` (e.g. CI spinning up its own container) if needed.
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL_TEST ??
+  process.env.DATABASE_URL ??
+  "postgresql://app:app@localhost:5432/app";
 // NODE_ENV is typed as a literal; the test environment is non-prod so a
 // cast is safe.
 (process.env as Record<string, string>).NODE_ENV = "test";
 // Pin the academic year so enrollment rows match the fixtures.
 process.env.ACADEMIC_YEAR = "2025-2026";
 
-// Make sure data/ exists
-if (!existsSync(TEST_DB_DIR)) {
-  mkdirSync(TEST_DB_DIR, { recursive: true });
-}
-
-// Wipe any prior test DB to keep the run deterministic
-for (const suffix of ["", "-journal"]) {
-  const p = TEST_DB_PATH + suffix;
-  if (existsSync(p)) rmSync(p);
-}
-
-// Push the current schema into the fresh DB.
-execSync("npx prisma db push", {
+// Push the current schema into the test DB. `--force-reset` drops and
+// recreates every table — equivalent to the previous SQLite "wipe the
+// file" step.
+execSync("npx prisma db push --force-reset --accept-data-loss --skip-generate", {
   stdio: "ignore",
   env: { ...process.env },
 });

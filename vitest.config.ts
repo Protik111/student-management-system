@@ -3,10 +3,10 @@ import path from "node:path";
 
 /**
  * Vitest config. We use the `node` environment because the actions we're
- * testing are server-only. `pool: "forks"` ensures each test file runs in
- * its own process so multiple SQLite clients don't open conflicting
- * connections to the same file. Path alias `@/*` mirrors the project's
- * tsconfig.
+ * testing are server-only. `pool: "forks"` with `singleFork: true` keeps
+ * tests serial against the same Postgres database (no concurrent
+ * transactions racing on the same tables). Path alias `@/*` mirrors the
+ * project's tsconfig.
  *
  * The `server-only` package throws when imported outside Next.js's bundler
  * context; we alias it to a no-op stub so the test process can load

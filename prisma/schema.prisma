@@ -1,4 +1,4 @@
-// SMS — School Management System schema (Prisma + SQLite)
+// SMS — School Management System schema (Prisma + PostgreSQL)
 // Same 18 tables, same constraints, same field semantics as the Drizzle version.
 
 generator client {
@@ -9,12 +9,10 @@ generator client {
 // Datasource: provider stays here, connection details live in prisma.config.ts
 // (Prisma 7 requirement).
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
-// ─── Enums (Prisma supports native enums on SQLite via string columns) ──────
-// SQLite has no native ENUM type — Prisma emits CHECK constraints + the
-// PrismaClient uses string-literal types matching these values.
+// ─── Enums (Postgres supports native enums; Prisma emits CREATE TYPE …) ─────
 
 enum Role {
   super_admin
