@@ -21,7 +21,11 @@ export const metadata: Metadata = {
     "A multi-tenant School Management System for schools, students, teachers, exams, and library operations.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-base font-sans text-text">
