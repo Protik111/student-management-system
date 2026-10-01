@@ -155,14 +155,20 @@ export const studentCreateSchema = z
       .optional()
       .or(z.literal("").transform(() => undefined)),
     avatarUrl: optionalUrl,
-    password: passwordSchema.optional(),
+    password: z
+      .string()
+      .trim()
+      .max(128)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
 
     // School (required; super admin may pick any, school admin is forced)
     schoolId: z.string().min(1, "School is required"),
 
-    // Roles (locked to student in Module 3 — but include for forward-compat)
-    primaryRole: z.literal("student"),
-    roles: z.array(z.enum(ROLES)).min(1, "At least one role is required"),
+    // Roles are locked at the call site by `createStudent` — see lib/actions/students.ts.
+    // Made optional here so the form's zodResolver only validates user-input fields.
+    primaryRole: z.literal("student").optional(),
+    roles: z.array(z.enum(ROLES)).optional(),
 
     // Student profile
     admissionNo: trimmedString(40).min(1, "Admission number is required"),
@@ -185,20 +191,14 @@ export const studentCreateSchema = z
     // Enrollment toggle (only meaningful when currentClassId is set)
     enrollInCurrentClass: z.boolean().default(false),
   })
-  .refine((v) => v.roles.includes("student"), {
-    message: "Student role is required",
-    path: ["roles"],
-  })
   .refine((v) => v.enrollInCurrentClass !== true || Boolean(v.currentClassId), {
     message: "Pick a class first or uncheck 'Enroll now'",
     path: ["enrollInCurrentClass"],
   })
-  .refine((v) => typeof v.password === "string" && v.password.length >= 8, {
-    message: "Password must be at least 8 characters",
-    path: ["password"],
-  })
   .transform((v) => ({
     ...v,
+    primaryRole: "student" as const,
+    roles: ["student"] as const,
     dateOfBirth: dateOnlyToDate(v.dateOfBirth),
   }));
 
@@ -261,11 +261,18 @@ export const teacherCreateSchema = z
       .optional()
       .or(z.literal("").transform(() => undefined)),
     avatarUrl: optionalUrl,
-    password: passwordSchema.optional(),
+    password: z
+      .string()
+      .trim()
+      .max(128)
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
 
     schoolId: z.string().min(1, "School is required"),
-    primaryRole: z.literal("teacher"),
-    roles: z.array(z.enum(ROLES)).min(1, "At least one role is required"),
+
+    // Roles are locked at the call site by `createTeacher` — see lib/actions/teachers.ts.
+    primaryRole: z.literal("teacher").optional(),
+    roles: z.array(z.enum(ROLES)).optional(),
 
     // Teacher profile
     employeeId: trimmedString(40).min(1, "Employee ID is required"),
@@ -278,16 +285,10 @@ export const teacherCreateSchema = z
       .optional(),
     hireDate: isoDateString,
   })
-  .refine((v) => v.roles.includes("teacher"), {
-    message: "Teacher role is required",
-    path: ["roles"],
-  })
-  .refine((v) => typeof v.password === "string" && v.password.length >= 8, {
-    message: "Password must be at least 8 characters",
-    path: ["password"],
-  })
   .transform((v) => ({
     ...v,
+    primaryRole: "teacher" as const,
+    roles: ["teacher"] as const,
     hireDate: dateOnlyToDate(v.hireDate),
   }));
 

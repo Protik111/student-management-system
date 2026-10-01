@@ -131,9 +131,9 @@ export default function StudentForm({
   }));
 
   async function onSubmit(values: FormValues) {
-    // Client-side required checks that the Zod schema doesn't enforce
-    // (gender is optional server-side; schoolId is required only when not
-    // editing an existing record).
+    // Client-side required checks that the Zod schema doesn't enforce.
+    // (gender / schoolId are user-input; password length is checked here
+    // because the server action also requires it on create.)
     if (!initial && !values.gender) {
       setError("gender", {
         type: "manual",
@@ -153,6 +153,17 @@ export default function StudentForm({
       toast.error({
         title: "Please fix the highlighted fields",
         description: "School is required.",
+      });
+      return;
+    }
+    if (!initial && (!values.password || values.password.length < 8)) {
+      setError("password", {
+        type: "manual",
+        message: "Password must be at least 8 characters",
+      });
+      toast.error({
+        title: "Please fix the highlighted fields",
+        description: "Password must be at least 8 characters.",
       });
       return;
     }

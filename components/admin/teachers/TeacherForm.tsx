@@ -101,6 +101,17 @@ export default function TeacherForm({
       });
       return;
     }
+    if (!initial && (!values.password || values.password.length < 8)) {
+      setError("password", {
+        type: "manual",
+        message: "Password must be at least 8 characters",
+      });
+      toast.error({
+        title: "Please fix the highlighted fields",
+        description: "Password must be at least 8 characters.",
+      });
+      return;
+    }
 
     if (initial) {
       const result = await updateTeacher({
