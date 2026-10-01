@@ -12,6 +12,7 @@ export default function Input({
   hint,
   className,
   id,
+  required,
   ...props
 }: InputProps) {
   return (
@@ -22,10 +23,16 @@ export default function Input({
           className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted"
         >
           {label}
+          {required && (
+            <span className="ml-1 text-danger" aria-hidden>
+              *
+            </span>
+          )}
         </label>
       )}
       <input
         id={id}
+        required={required}
         className={cn(
           "rounded-chip border bg-card px-3.5 py-2.5 text-default text-text placeholder:text-text-subtle focus:outline-none transition-colors",
           error

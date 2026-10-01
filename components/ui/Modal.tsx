@@ -41,14 +41,14 @@ export default function Modal({
     >
       <div
         className={cn(
-          "relative w-full max-w-lg rounded-card border border-border bg-card shadow-2xl",
+          "relative flex w-full max-w-lg flex-col max-h-[90vh] rounded-card border border-border bg-card shadow-2xl",
           className,
         )}
         role="dialog"
         aria-modal="true"
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
             <h2 className="text-card-title font-semibold text-text">{title}</h2>
             <button
               onClick={onClose}
@@ -71,7 +71,7 @@ export default function Modal({
             </button>
           </div>
         )}
-        <div className="px-6 py-5">{children}</div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
       </div>
     </div>
   );

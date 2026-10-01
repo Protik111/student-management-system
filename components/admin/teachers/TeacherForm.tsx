@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -56,7 +55,6 @@ export default function TeacherForm({
   onSaved,
 }: TeacherFormProps) {
   const toast = useToast();
-  const [submitting, setSubmitting] = useState(false);
 
   const defaultSchoolId =
     variant === "school_admin"
@@ -67,7 +65,8 @@ export default function TeacherForm({
     register,
     handleSubmit,
     control,
-    formState: { errors },
+    setError,
+    formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(teacherCreateSchema) as never,
     defaultValues: {
@@ -91,7 +90,17 @@ export default function TeacherForm({
   }));
 
   async function onSubmit(values: FormValues) {
-    setSubmitting(true);
+    if (!initial && !values.schoolId) {
+      setError("schoolId", {
+        type: "manual",
+        message: "School is required",
+      });
+      toast.error({
+        title: "Please fix the highlighted fields",
+        description: "School is required.",
+      });
+      return;
+    }
 
     if (initial) {
       const result = await updateTeacher({
@@ -109,7 +118,6 @@ export default function TeacherForm({
         // See createTeacher above
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
-      setSubmitting(false);
       if (!result.ok) {
         toast.error({
           title: "Couldn't update teacher",
@@ -139,7 +147,6 @@ export default function TeacherForm({
       // Server schema transforms hireDate string → Date.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
-    setSubmitting(false);
 
     if (!result.ok) {
       toast.error({
@@ -155,7 +162,7 @@ export default function TeacherForm({
   return (
     <Modal
       open
-      onClose={submitting ? () => undefined : onClose}
+      onClose={isSubmitting ? () => undefined : onClose}
       title={initial ? "Edit teacher" : "Add a new teacher"}
       className="sm:max-w-2xl"
     >
@@ -279,6 +286,7 @@ export default function TeacherForm({
               render={({ field }) => (
                 <AppSelect
                   label="School"
+                  required={!initial}
                   placeholder={
                     schoolOptions.length === 0
                       ? "No active schools"
@@ -303,10 +311,10 @@ export default function TeacherForm({
         </Section>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" type="button" onClick={onClose} disabled={submitting}>
+          <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={isSubmitting}>
             {initial ? "Save changes" : "Create teacher"}
           </Button>
         </div>

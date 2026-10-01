@@ -31,6 +31,8 @@ interface AppSelectProps {
   disabled?: boolean;
   /** Visual size variant. */
   size?: "sm" | "md";
+  /** Marks the field as required — renders a red `*` next to the label. */
+  required?: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export default function AppSelect({
   className,
   disabled,
   size = "md",
+  required,
 }: AppSelectProps) {
   const generatedId = React.useId();
   const triggerId = id ?? generatedId;
@@ -69,6 +72,11 @@ export default function AppSelect({
           className="text-meta font-semibold uppercase tracking-[0.06em] text-text-muted"
         >
           {label}
+          {required && (
+            <span className="ml-1 text-danger" aria-hidden>
+              *
+            </span>
+          )}
         </label>
       )}
       <Select

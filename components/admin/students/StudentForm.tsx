@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -69,7 +69,6 @@ export default function StudentForm({
   onSaved,
 }: StudentFormProps) {
   const toast = useToast();
-  const [submitting, setSubmitting] = useState(false);
 
   const defaultSchoolId =
     variant === "school_admin"
@@ -82,7 +81,8 @@ export default function StudentForm({
     control,
     watch,
     setValue,
-    formState: { errors },
+    setError,
+    formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     // The schema transforms dateOfBirth string → Date, but the form uses a
     // string. Cast the resolver to satisfy RHF's generic.
@@ -131,7 +131,31 @@ export default function StudentForm({
   }));
 
   async function onSubmit(values: FormValues) {
-    setSubmitting(true);
+    // Client-side required checks that the Zod schema doesn't enforce
+    // (gender is optional server-side; schoolId is required only when not
+    // editing an existing record).
+    if (!initial && !values.gender) {
+      setError("gender", {
+        type: "manual",
+        message: "Gender is required",
+      });
+      toast.error({
+        title: "Please fix the highlighted fields",
+        description: "Gender is required.",
+      });
+      return;
+    }
+    if (!initial && !values.schoolId) {
+      setError("schoolId", {
+        type: "manual",
+        message: "School is required",
+      });
+      toast.error({
+        title: "Please fix the highlighted fields",
+        description: "School is required.",
+      });
+      return;
+    }
 
     if (initial) {
       const result = await updateStudent({
@@ -152,7 +176,6 @@ export default function StudentForm({
         // See createStudent above
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
-      setSubmitting(false);
       if (!result.ok) {
         toast.error({
           title: "Couldn't update student",
@@ -186,7 +209,6 @@ export default function StudentForm({
       // TypeScript can't statically express that across the network boundary.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
-    setSubmitting(false);
 
     if (!result.ok) {
       toast.error({
@@ -202,7 +224,7 @@ export default function StudentForm({
   return (
     <Modal
       open
-      onClose={submitting ? () => undefined : onClose}
+      onClose={isSubmitting ? () => undefined : onClose}
       title={initial ? "Edit student" : "Add a new student"}
       className="sm:max-w-2xl"
     >
@@ -270,14 +292,10 @@ export default function StudentForm({
                 <AppSelect
                   label="Gender"
                   placeholder="Select gender…"
-                  options={[
-                    { value: "__none__", label: "(not specified)" },
-                    ...genderOptions,
-                  ]}
-                  value={field.value ?? "__none__"}
-                  onValueChange={(v) =>
-                    field.onChange(v === "__none__" ? undefined : (v as Gender))
-                  }
+                  required={!initial}
+                  options={genderOptions}
+                  value={field.value ?? ""}
+                  onValueChange={(v) => field.onChange(v as Gender)}
                   error={errors.gender?.message}
                 />
               )}
@@ -307,6 +325,7 @@ export default function StudentForm({
               render={({ field }) => (
                 <AppSelect
                   label="School"
+                  required={!initial}
                   placeholder={
                     schoolOptions.length === 0
                       ? "No active schools"
@@ -413,10 +432,10 @@ export default function StudentForm({
         </Section>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" type="button" onClick={onClose} disabled={submitting}>
+          <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={isSubmitting}>
             {initial ? "Save changes" : "Create student"}
           </Button>
         </div>
