@@ -1,4 +1,4 @@
-import { Users, BookOpen, GraduationCap, School, Calendar, Library, BarChart3, UserCog } from "lucide-react";
+import { Users, GraduationCap, School, BarChart3, UserCog } from "lucide-react";
 
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
@@ -49,27 +49,6 @@ const MODULE_CARDS: ModuleCard[] = [
     permission: "manage_teachers",
     href: "/school-admin/teachers",
     moduleNumber: 3,
-  },
-  {
-    title: "Classes & Subjects",
-    description: "Academic structure and curriculum mapping.",
-    icon: BookOpen,
-    permission: "manage_classes",
-    href: "/school-admin/classes",
-  },
-  {
-    title: "Exams",
-    description: "Exams, grading, and report cards.",
-    icon: Calendar,
-    permission: "manage_exams",
-    href: "/school-admin/exams",
-  },
-  {
-    title: "Library",
-    description: "Books, issuing, and overdue tracking.",
-    icon: Library,
-    permission: "manage_books",
-    href: "/school-admin/library",
   },
   {
     title: "Analytics",

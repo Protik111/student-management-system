@@ -152,11 +152,6 @@ export default function EnrollmentsList({
           </table>
         </Card>
       )}
-
-      <p className="text-meta text-text-subtle">
-        Past enrollments are read-only in this module. Editing enrollment status
-        (graduated / transferred / dropped) ships with the Class roster module.
-      </p>
     </div>
   );
 }
