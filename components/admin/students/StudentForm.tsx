@@ -178,7 +178,7 @@ export default function StudentForm({
         admissionNo: values.admissionNo,
         dateOfBirth: values.dateOfBirth || undefined,
         gender: values.gender,
-        currentClassId: values.currentClassId || null,
+        currentClassId: values.currentClassId || undefined,
         guardianName: values.guardianName || undefined,
         guardianPhone: values.guardianPhone || undefined,
         address: values.address || undefined,
@@ -318,7 +318,11 @@ export default function StudentForm({
             render={({ field }) => (
               <DatePicker
                 label="Date of birth"
-                value={field.value ?? ""}
+                value={
+                  field.value instanceof Date
+                    ? field.value.toISOString().slice(0, 10)
+                    : (field.value ?? "")
+                }
                 onChange={(v) => field.onChange(v)}
                 toDate={new Date()}
                 error={errors.dateOfBirth?.message}

@@ -130,13 +130,28 @@ export const resetPasswordResponseSchema = z.object({
 
 /* ─── Student schemas ────────────────────────────────────────────────────── */
 
+// Accepts YYYY-MM-DD strings, Date objects, empty string, undefined, or null.
+// Anything else (including a malformed date) is rejected. `null` / `""` /
+// `Date` are all normalised to either an ISO string or `undefined`.
 const isoDateString = z
-  .string()
-  .trim()
-  .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Use YYYY-MM-DD")
-  .refine((v) => v === "" || !Number.isNaN(new Date(v).getTime()), "Invalid date")
+  .union([
+    z.literal(""),
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+      .refine((v) => !Number.isNaN(new Date(v).getTime()), "Invalid date"),
+    z.date(),
+  ])
   .optional()
-  .or(z.literal("").transform(() => undefined));
+  .nullable()
+  .transform((v) => {
+    if (v == null || v === "") return undefined;
+    if (v instanceof Date) {
+      const iso = v.toISOString().slice(0, 10);
+      return iso;
+    }
+    return v;
+  });
 
 function dateOnlyToDate(v: unknown): Date | undefined {
   if (typeof v !== "string" || v === "") return undefined;
@@ -178,6 +193,7 @@ export const studentCreateSchema = z
       .string()
       .trim()
       .optional()
+      .nullable()
       .or(z.literal("").transform(() => undefined)),
     guardianName: trimmedString(60).optional(),
     guardianPhone: z
@@ -185,6 +201,7 @@ export const studentCreateSchema = z
       .trim()
       .max(40)
       .optional()
+      .nullable()
       .or(z.literal("").transform(() => undefined)),
     address: trimmedString(500).optional(),
 
@@ -217,6 +234,7 @@ export const studentUpdateSchema = z
       .trim()
       .max(40)
       .optional()
+      .nullable()
       .or(z.literal("").transform(() => undefined)),
     avatarUrl: optionalUrl,
     admissionNo: trimmedString(40).optional(),
@@ -226,6 +244,7 @@ export const studentUpdateSchema = z
       .string()
       .trim()
       .optional()
+      .nullable()
       .or(z.literal("").transform(() => undefined)),
     guardianName: trimmedString(60).optional(),
     guardianPhone: z
@@ -233,6 +252,7 @@ export const studentUpdateSchema = z
       .trim()
       .max(40)
       .optional()
+      .nullable()
       .or(z.literal("").transform(() => undefined)),
     address: trimmedString(500).optional(),
     /** Set to true to also write a new Enrollment row for currentClassId. */

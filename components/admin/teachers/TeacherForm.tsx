@@ -240,7 +240,11 @@ export default function TeacherForm({
               render={({ field }) => (
                 <DatePicker
                   label="Hire date"
-                  value={field.value ?? ""}
+                  value={
+                    field.value instanceof Date
+                      ? field.value.toISOString().slice(0, 10)
+                      : (field.value ?? "")
+                  }
                   onChange={(v) => field.onChange(v)}
                   toDate={new Date()}
                   error={errors.hireDate?.message}
