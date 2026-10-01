@@ -163,12 +163,12 @@ crash the app:
 | `/student/results` | Module 5 |
 | `/student/attendance` | Module 5 |
 | `/student/library` | Module 6 |
-| `/school-admin/classes` | Module 4 |
-| `/school-admin/subjects` | Module 4 |
-| `/school-admin/exams` | Module 5 |
-| `/school-admin/library` | Module 6 |
-| `/school-admin/reports` | Module 7 |
-| `/school-admin/notifications` | Module 8 |
+| `/admin/classes` | Module 4 |
+| `/admin/subjects` | Module 4 |
+| `/admin/exams` | Module 5 |
+| `/admin/library` | Module 6 |
+| `/admin/reports` | Module 7 |
+| `/admin/notifications` | Module 8 |
 
 ---
 

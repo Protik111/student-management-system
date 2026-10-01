@@ -1,7 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import Badge from "@/components/ui/Badge";
@@ -13,9 +13,10 @@ import { ENROLLMENT_STATUSES, type EnrollmentStatus } from "@/lib/db/types";
 import type { EnrollmentListItem } from "@/lib/actions/students";
 import type { StudentListItem } from "@/lib/actions/students";
 import StudentNameCell from "@/components/admin/shared/StudentNameCell";
+import EnrollmentStatusControl from "@/components/admin/enrollments/EnrollmentStatusControl";
 
 interface EnrollmentsListProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   student: StudentListItem;
   enrollments: EnrollmentListItem[];
 }
@@ -42,8 +43,8 @@ export default function EnrollmentsList({
   student,
   enrollments,
 }: EnrollmentsListProps) {
-  const hrefBase: "/super-admin" | "/school-admin" =
-    variant === "super_admin" ? "/super-admin" : "/school-admin";
+  const router = useRouter();
+  const hrefBase: "/admin" = "/admin";
 
   return (
     <div className="space-y-6">
@@ -102,6 +103,7 @@ export default function EnrollmentsList({
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
                 <th className="px-4 py-3 text-left font-semibold">Enrolled on</th>
                 <th className="px-4 py-3 text-left font-semibold">Left on</th>
+                <th className="px-4 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -144,6 +146,13 @@ export default function EnrollmentsList({
                       {e.leftAt ? format(e.leftAt, "PPP") : (
                         <span className="text-meta text-text-subtle">—</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <EnrollmentStatusControl
+                        enrollmentId={e.id}
+                        currentStatus={e.status}
+                        onChanged={() => router.refresh()}
+                      />
                     </td>
                   </tr>
                 );

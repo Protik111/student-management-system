@@ -4,6 +4,7 @@ import { signOut } from "next-auth/react";
 import { LogOut, Menu } from "lucide-react";
 
 import RoleBadge from "@/components/auth/RoleBadge";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import Button from "@/components/ui/Button";
 import { ROLE_LABEL, type Role } from "@/lib/rbac";
 
@@ -37,6 +38,8 @@ export default function Topbar({ fullName, email, role }: TopbarProps) {
 
       <div className="ml-auto flex items-center gap-3">
         <RoleBadge role={role} />
+
+        <NotificationBell />
 
         <div className="hidden text-right sm:block">
           <p className="text-default font-medium leading-tight text-text">{fullName}</p>

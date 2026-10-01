@@ -46,7 +46,7 @@ export async function listStudents(): Promise<StudentListItem[]> {
   const actor = await requirePermission("manage_students");
 
   const where =
-    actor.role === "school_admin" && actor.schoolId
+    actor.role === "ADMIN" && actor.schoolId
       ? { schoolId: actor.schoolId }
       : {};
 
@@ -95,7 +95,7 @@ export async function getStudentFormOptions(): Promise<StudentFormOptions> {
   const actor = await requirePermission("manage_students");
 
   const [schools, classes] = await Promise.all([
-    actor.role === "school_admin" && actor.schoolId
+    actor.role === "ADMIN" && actor.schoolId
       ? prisma.school.findMany({
           where: { id: actor.schoolId },
           select: { id: true, name: true, isActive: true },
@@ -107,7 +107,7 @@ export async function getStudentFormOptions(): Promise<StudentFormOptions> {
         }),
     prisma.class.findMany({
       where:
-        actor.role === "school_admin" && actor.schoolId
+        actor.role === "ADMIN" && actor.schoolId
           ? { schoolId: actor.schoolId }
           : {},
       orderBy: [{ schoolId: "asc" }, { gradeLevel: "asc" }, { section: "asc" }],
@@ -158,7 +158,7 @@ export async function listStudentEnrollments(
   });
   if (!student) return [];
 
-  if (actor.role === "school_admin" && student.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && student.schoolId !== actor.schoolId) {
     return [];
   }
 
@@ -202,7 +202,7 @@ export async function createStudent(
   const data = parsed.data;
 
   // School admin: force schoolId to their own
-  if (actor.role === "school_admin") {
+  if (actor.role === "ADMIN") {
     if (!actor.schoolId) return fail("Your account is not attached to a school");
     data.schoolId = actor.schoolId;
   }
@@ -213,7 +213,7 @@ export async function createStudent(
     select: { id: true, isActive: true },
   });
   if (!school) return fail("School not found", { schoolId: ["Invalid school"] });
-  if (!school.isActive && actor.role !== "super_admin") {
+  if (!school.isActive && actor.role !== "ADMIN") {
     return fail("School is inactive", { schoolId: ["School is inactive"] });
   }
 
@@ -266,7 +266,7 @@ export async function createStudent(
           phone: data.phone ?? null,
           avatarUrl: data.avatarUrl ?? null,
           schoolId: data.schoolId,
-          primaryRole: "student",
+          primaryRole: "STUDENT",
           isActive: true,
         },
       });
@@ -329,8 +329,8 @@ export async function createStudent(
       return student;
     });
 
-    revalidatePath("/super-admin/students");
-    revalidatePath("/school-admin/students");
+    revalidatePath("/admin/students");
+    revalidatePath("/admin/students");
     return ok({ id: created.id });
   } catch (err) {
     return messageFromError(err, "Failed to create student");
@@ -362,7 +362,7 @@ export async function updateStudent(
   });
   if (!existing) return fail("Student not found");
 
-  if (actor.role === "school_admin" && existing.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && existing.schoolId !== actor.schoolId) {
     return fail("You can only edit students in your school");
   }
 
@@ -469,8 +469,8 @@ export async function updateStudent(
       });
     });
 
-    revalidatePath("/super-admin/students");
-    revalidatePath("/school-admin/students");
+    revalidatePath("/admin/students");
+    revalidatePath("/admin/students");
     return ok({ id });
   } catch (err) {
     return messageFromError(err, "Failed to update student");
@@ -495,7 +495,7 @@ export async function toggleStudentActive(
   });
   if (!existing) return fail("Student not found");
 
-  if (actor.role === "school_admin" && existing.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && existing.schoolId !== actor.schoolId) {
     return fail("You can only edit students in your school");
   }
 
@@ -517,8 +517,8 @@ export async function toggleStudentActive(
       });
     });
 
-    revalidatePath("/super-admin/students");
-    revalidatePath("/school-admin/students");
+    revalidatePath("/admin/students");
+    revalidatePath("/admin/students");
     return ok({ id, isActive: nextActive });
   } catch (err) {
     return messageFromError(err, "Failed to toggle student status");

@@ -5,9 +5,9 @@ import {
   listUsers,
 } from "@/lib/actions/users";
 
-export const metadata = { title: "Users · Super Admin" };
+export const metadata = { title: "Users · Admin" };
 
-export default async function SuperAdminUsersPage() {
+export default async function SchoolAdminUsersPage() {
   const me = await requirePermission("manage_users");
   const [users, options] = await Promise.all([
     listUsers(),
@@ -16,7 +16,7 @@ export default async function SuperAdminUsersPage() {
 
   return (
     <UsersList
-      variant="super_admin"
+      variant="ADMIN"
       initialUsers={users}
       options={options}
       currentUserId={me.id}

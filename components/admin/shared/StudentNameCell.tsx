@@ -10,8 +10,8 @@ interface StudentNameCellProps {
   email?: string;
   /** When provided, wraps the name in a link to /students/{enrollmentsHref}. */
   enrollmentsHref?: string;
-  /** When provided, the link points to a path inside one of the two namespaces. */
-  hrefBase: "/super-admin" | "/school-admin";
+  /** When provided, the link points to a path inside the admin namespace. */
+  hrefBase: "/admin";
   className?: string;
 }
 

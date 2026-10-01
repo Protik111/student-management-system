@@ -22,7 +22,7 @@ import {
 } from "@/lib/actions/teachers";
 
 interface TeachersListProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   initialTeachers: TeacherListItem[];
   options: TeacherFormOptions;
   currentUserId: string;
@@ -82,7 +82,7 @@ export default function TeachersList({
       <PageHeader
         title="Teachers"
         description={
-          variant === "super_admin"
+          variant === "ADMIN"
             ? "Every teacher on the platform — across every school."
             : "Every teacher in your school."
         }
@@ -104,7 +104,7 @@ export default function TeachersList({
         <EmptyState
           title="No teachers yet"
           description={
-            variant === "super_admin"
+            variant === "ADMIN"
               ? "Add a school first, then onboard a teacher."
               : "Onboard your first teacher to your school."
           }
@@ -121,7 +121,7 @@ export default function TeachersList({
               <tr className="border-b border-border text-meta uppercase tracking-[0.06em] text-text-subtle">
                 <th className="px-4 py-3 text-left font-semibold">Teacher</th>
                 <th className="px-4 py-3 text-left font-semibold">Specialization</th>
-                {variant === "super_admin" && (
+                {variant === "ADMIN" && (
                   <th className="px-4 py-3 text-left font-semibold">School</th>
                 )}
                 <th className="px-4 py-3 text-left font-semibold">Hire date</th>
@@ -133,7 +133,7 @@ export default function TeachersList({
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={variant === "super_admin" ? 6 : 5}
+                    colSpan={variant === "ADMIN" ? 6 : 5}
                     className="py-8 text-center text-default text-text-muted"
                   >
                     No teachers match your search.
@@ -165,7 +165,7 @@ export default function TeachersList({
                           <span className="text-meta text-text-subtle">—</span>
                         )}
                       </td>
-                      {variant === "super_admin" && (
+                      {variant === "ADMIN" && (
                         <td className="px-4 py-3.5 text-text-muted">
                           {t.schoolName}
                         </td>

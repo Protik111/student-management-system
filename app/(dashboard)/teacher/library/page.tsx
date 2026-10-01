@@ -4,7 +4,7 @@ import ComingSoon from "@/components/shell/ComingSoon";
 export const metadata = { title: "Library · Teacher" };
 
 export default async function TeacherLibraryPage() {
-  await requireRole("teacher");
+  await requireRole("TEACHER");
   return (
     <ComingSoon
       sectionLabel="Issue Books"

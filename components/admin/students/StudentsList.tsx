@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -23,7 +23,7 @@ import {
 } from "@/lib/actions/students";
 
 interface StudentsListProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   initialStudents: StudentListItem[];
   options: StudentFormOptions;
   currentUserId: string;
@@ -42,8 +42,7 @@ export default function StudentsList({
   const [editing, setEditing] = useState<StudentListItem | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const hrefBase: "/super-admin" | "/school-admin" =
-    variant === "super_admin" ? "/super-admin" : "/school-admin";
+  const hrefBase: "/admin" = "/admin";
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -87,7 +86,7 @@ export default function StudentsList({
       <PageHeader
         title="Students"
         description={
-          variant === "super_admin"
+          variant === "ADMIN"
             ? "Every student on the platform — across every school."
             : "Every student enrolled in your school."
         }
@@ -98,6 +97,12 @@ export default function StudentsList({
               onChange={setSearch}
               placeholder="Search by name, admission #, class…"
             />
+            <Button
+              variant="outline"
+              href={`${hrefBase}/students/import`}
+            >
+              <Upload className="h-4 w-4" aria-hidden /> Import CSV
+            </Button>
             <Button onClick={() => setCreating(true)}>
               <Plus className="h-4 w-4" aria-hidden /> New student
             </Button>
@@ -109,7 +114,7 @@ export default function StudentsList({
         <EmptyState
           title="No students yet"
           description={
-            variant === "super_admin"
+            variant === "ADMIN"
               ? "Add a school first, then admit a student."
               : "Admit your first student to your school."
           }
@@ -126,7 +131,7 @@ export default function StudentsList({
               <tr className="border-b border-border text-meta uppercase tracking-[0.06em] text-text-subtle">
                 <th className="px-4 py-3 text-left font-semibold">Student</th>
                 <th className="px-4 py-3 text-left font-semibold">Class</th>
-                {variant === "super_admin" && (
+                {variant === "ADMIN" && (
                   <th className="px-4 py-3 text-left font-semibold">School</th>
                 )}
                 <th className="px-4 py-3 text-left font-semibold">Guardian</th>
@@ -138,7 +143,7 @@ export default function StudentsList({
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={variant === "super_admin" ? 6 : 5}
+                    colSpan={variant === "ADMIN" ? 6 : 5}
                     className="py-8 text-center text-default text-text-muted"
                   >
                     No students match your search.
@@ -171,7 +176,7 @@ export default function StudentsList({
                           <span className="text-meta text-text-subtle">—</span>
                         )}
                       </td>
-                      {variant === "super_admin" && (
+                      {variant === "ADMIN" && (
                         <td className="px-4 py-3.5 text-text-muted">
                           {s.schoolName}
                         </td>

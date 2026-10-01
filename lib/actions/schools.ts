@@ -104,7 +104,7 @@ export async function createSchool(
       return school;
     });
 
-    revalidatePath("/super-admin/schools");
+    revalidatePath("/admin/schools");
     return ok({ id: created.id });
   } catch (err) {
     return messageFromError(err, "Failed to create school");
@@ -154,7 +154,7 @@ export async function updateSchool(
       });
     });
 
-    revalidatePath("/super-admin/schools");
+    revalidatePath("/admin/schools");
     return ok({ id });
   } catch (err) {
     return messageFromError(err, "Failed to update school");
@@ -189,7 +189,7 @@ export async function toggleSchoolActive(
       });
     });
 
-    revalidatePath("/super-admin/schools");
+    revalidatePath("/admin/schools");
     return ok({ id, isActive: nextActive });
   } catch (err) {
     return messageFromError(err, "Failed to toggle school status");

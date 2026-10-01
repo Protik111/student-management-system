@@ -28,7 +28,7 @@ import {
 } from "@/lib/actions/users";
 
 interface UsersListProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   initialUsers: UserListItem[];
   options: UserFormOptions;
   currentUserId: string;
@@ -111,14 +111,14 @@ export default function UsersList({
       <PageHeader
         title="Users"
         description={
-          variant === "super_admin"
+          variant === "ADMIN"
             ? "Everyone on the platform — across every school."
             : "Everyone in your school."
         }
         actions={
           <>
             <SearchInput value={search} onChange={setSearch} placeholder="Search users…" />
-            {variant === "super_admin" && (
+            {variant === "ADMIN" && (
               <AppSelect
                 options={filterRoleOptions}
                 value={roleFilter}
@@ -138,7 +138,7 @@ export default function UsersList({
         <EmptyState
           title="No users yet"
           description={
-            variant === "super_admin"
+            variant === "ADMIN"
               ? "Create your first user — a school admin, teacher, or student."
               : "Add teachers and students to your school."
           }
@@ -154,7 +154,7 @@ export default function UsersList({
             <thead>
               <tr className="border-b border-border text-meta uppercase tracking-[0.06em] text-text-subtle">
                 <th className="px-4 py-3 text-left font-semibold">User</th>
-                {variant === "super_admin" && (
+                {variant === "ADMIN" && (
                   <th className="px-4 py-3 text-left font-semibold">School</th>
                 )}
                 <th className="px-4 py-3 text-left font-semibold">Roles</th>
@@ -166,7 +166,7 @@ export default function UsersList({
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={variant === "super_admin" ? 5 : 4}
+                    colSpan={variant === "ADMIN" ? 5 : 4}
                     className="py-8 text-center text-default text-text-muted"
                   >
                     No users match your filters.
@@ -187,7 +187,7 @@ export default function UsersList({
                           <div className="text-meta text-text-subtle">{u.phone}</div>
                         )}
                       </td>
-                      {variant === "super_admin" && (
+                      {variant === "ADMIN" && (
                         <td className="px-4 py-3.5 text-text-muted">
                           {u.schoolName ?? (
                             <span className="text-meta text-text-subtle">—</span>

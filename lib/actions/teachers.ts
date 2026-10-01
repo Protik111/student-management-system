@@ -42,7 +42,7 @@ export async function listTeachers(): Promise<TeacherListItem[]> {
   const actor = await requirePermission("manage_teachers");
 
   const where =
-    actor.role === "school_admin" && actor.schoolId
+    actor.role === "ADMIN" && actor.schoolId
       ? { schoolId: actor.schoolId }
       : {};
 
@@ -84,7 +84,7 @@ export async function getTeacherFormOptions(): Promise<TeacherFormOptions> {
   const actor = await requirePermission("manage_teachers");
 
   const schools =
-    actor.role === "school_admin" && actor.schoolId
+    actor.role === "ADMIN" && actor.schoolId
       ? await prisma.school.findMany({
           where: { id: actor.schoolId },
           select: { id: true, name: true, isActive: true },
@@ -117,7 +117,7 @@ export async function createTeacher(
   const data = parsed.data;
 
   // School admin: force schoolId to their own
-  if (actor.role === "school_admin") {
+  if (actor.role === "ADMIN") {
     if (!actor.schoolId) return fail("Your account is not attached to a school");
     data.schoolId = actor.schoolId;
   }
@@ -128,7 +128,7 @@ export async function createTeacher(
     select: { id: true, isActive: true },
   });
   if (!school) return fail("School not found", { schoolId: ["Invalid school"] });
-  if (!school.isActive && actor.role !== "super_admin") {
+  if (!school.isActive && actor.role !== "ADMIN") {
     return fail("School is inactive", { schoolId: ["School is inactive"] });
   }
 
@@ -167,7 +167,7 @@ export async function createTeacher(
           phone: data.phone ?? null,
           avatarUrl: data.avatarUrl ?? null,
           schoolId: data.schoolId,
-          primaryRole: "teacher",
+          primaryRole: "TEACHER",
           isActive: true,
         },
       });
@@ -204,8 +204,8 @@ export async function createTeacher(
       return teacher;
     });
 
-    revalidatePath("/super-admin/teachers");
-    revalidatePath("/school-admin/teachers");
+    revalidatePath("/admin/teachers");
+    revalidatePath("/admin/teachers");
     return ok({ id: created.id });
   } catch (err) {
     return messageFromError(err, "Failed to create teacher");
@@ -237,7 +237,7 @@ export async function updateTeacher(
   });
   if (!existing) return fail("Teacher not found");
 
-  if (actor.role === "school_admin" && existing.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && existing.schoolId !== actor.schoolId) {
     return fail("You can only edit teachers in your school");
   }
 
@@ -299,8 +299,8 @@ export async function updateTeacher(
       });
     });
 
-    revalidatePath("/super-admin/teachers");
-    revalidatePath("/school-admin/teachers");
+    revalidatePath("/admin/teachers");
+    revalidatePath("/admin/teachers");
     return ok({ id });
   } catch (err) {
     return messageFromError(err, "Failed to update teacher");
@@ -325,7 +325,7 @@ export async function toggleTeacherActive(
   });
   if (!existing) return fail("Teacher not found");
 
-  if (actor.role === "school_admin" && existing.schoolId !== actor.schoolId) {
+  if (actor.role === "ADMIN" && existing.schoolId !== actor.schoolId) {
     return fail("You can only edit teachers in your school");
   }
 
@@ -347,8 +347,8 @@ export async function toggleTeacherActive(
       });
     });
 
-    revalidatePath("/super-admin/teachers");
-    revalidatePath("/school-admin/teachers");
+    revalidatePath("/admin/teachers");
+    revalidatePath("/admin/teachers");
     return ok({ id, isActive: nextActive });
   } catch (err) {
     return messageFromError(err, "Failed to toggle teacher status");

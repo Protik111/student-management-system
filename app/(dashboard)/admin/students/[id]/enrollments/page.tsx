@@ -62,7 +62,7 @@ export default async function SchoolAdminStudentEnrollmentsPage({
 
   return (
     <EnrollmentsList
-      variant="school_admin"
+      variant="ADMIN"
       student={student}
       enrollments={enrollments}
     />

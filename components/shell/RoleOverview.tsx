@@ -1,4 +1,4 @@
-import { Users, GraduationCap, School, BarChart3, UserCog } from "lucide-react";
+import { Users, GraduationCap, School, BarChart3, UserCog, Wallet, BookMarked, FileBarChart, History } from "lucide-react";
 
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
@@ -23,7 +23,7 @@ const MODULE_CARDS: ModuleCard[] = [
     description: "Provision and manage multi-school installations.",
     icon: School,
     permission: "manage_schools",
-    href: "/super-admin/schools",
+    href: "/admin/schools",
     moduleNumber: 2,
   },
   {
@@ -31,7 +31,7 @@ const MODULE_CARDS: ModuleCard[] = [
     description: "Create, edit, and deactivate system users.",
     icon: UserCog,
     permission: "manage_users",
-    href: "/school-admin/users",
+    href: "/admin/users",
     moduleNumber: 2,
   },
   {
@@ -39,7 +39,7 @@ const MODULE_CARDS: ModuleCard[] = [
     description: "Admissions, profiles, and class assignments.",
     icon: GraduationCap,
     permission: "manage_students",
-    href: "/school-admin/students",
+    href: "/admin/students",
     moduleNumber: 3,
   },
   {
@@ -47,15 +47,47 @@ const MODULE_CARDS: ModuleCard[] = [
     description: "Faculty records and qualifications.",
     icon: Users,
     permission: "manage_teachers",
-    href: "/school-admin/teachers",
+    href: "/admin/teachers",
     moduleNumber: 3,
+  },
+  {
+    title: "Enrollments",
+    description: "Manage student enrollment status across the academic year.",
+    icon: BookMarked,
+    permission: "manage_enrollments",
+    href: "/admin/enrollments",
+    moduleNumber: 4,
+  },
+  {
+    title: "Fees & Payments",
+    description: "Issue invoices, record payments, and print receipts.",
+    icon: Wallet,
+    permission: "manage_fees",
+    href: "/admin/fees",
+    moduleNumber: 4,
+  },
+  {
+    title: "Reports",
+    description: "Generate and publish student report cards.",
+    icon: FileBarChart,
+    permission: "generate_report_cards",
+    href: "/admin/reports",
+    moduleNumber: 4,
+  },
+  {
+    title: "Audit Log",
+    description: "Every change recorded against your school.",
+    icon: History,
+    permission: "view_audit",
+    href: "/admin/audit",
+    moduleNumber: 4,
   },
   {
     title: "Analytics",
     description: "KPIs and dashboards by role.",
     icon: BarChart3,
     permission: "view_dashboard",
-    href: "/school-admin",
+    href: "/admin",
   },
 ];
 

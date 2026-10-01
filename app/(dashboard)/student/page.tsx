@@ -4,10 +4,10 @@ import RoleOverview from "@/components/shell/RoleOverview";
 export const metadata = { title: "Student · Overview" };
 
 export default async function StudentHome() {
-  await requireRole("student");
+  await requireRole("STUDENT");
   return (
     <RoleOverview
-      role="student"
+      role="STUDENT"
       tagline="See your results, attendance, and library loans."
     />
   );

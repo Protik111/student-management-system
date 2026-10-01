@@ -21,7 +21,7 @@ import {
 } from "@/lib/actions/users";
 
 interface UserFormProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   options: UserFormOptions;
   initial?: {
     id: string;
@@ -51,12 +51,12 @@ export default function UserForm({
   const [submitting, setSubmitting] = useState(false);
 
   const defaultSchoolId =
-    variant === "school_admin"
+    variant === "ADMIN"
       ? options.schools[0]?.id ?? null
       : initial?.schoolId ?? null;
 
   const defaultPrimaryRole: Role =
-    initial?.primaryRole ?? (variant === "school_admin" ? "teacher" : "school_admin");
+    initial?.primaryRole ?? "TEACHER";
 
   const {
     register,
@@ -182,7 +182,7 @@ export default function UserForm({
           />
         </div>
 
-        {variant === "super_admin" && (
+        {variant === "ADMIN" && (
           <Controller
             control={control}
             name="schoolId"

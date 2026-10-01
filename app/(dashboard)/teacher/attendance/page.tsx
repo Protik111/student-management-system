@@ -4,7 +4,7 @@ import ComingSoon from "@/components/shell/ComingSoon";
 export const metadata = { title: "Take Attendance · Teacher" };
 
 export default async function TeacherAttendancePage() {
-  await requireRole("teacher");
+  await requireRole("TEACHER");
   return (
     <ComingSoon
       sectionLabel="Take Attendance"

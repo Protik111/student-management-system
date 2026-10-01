@@ -18,7 +18,7 @@ import {
 } from "@/lib/actions/teachers";
 
 interface TeacherFormProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   options: TeacherFormOptions;
   initial?: {
     id: string;
@@ -57,7 +57,7 @@ export default function TeacherForm({
   const toast = useToast();
 
   const defaultSchoolId =
-    variant === "school_admin"
+    variant === "ADMIN"
       ? options.schools[0]?.id ?? ""
       : initial?.schoolId ?? "";
 
@@ -148,8 +148,8 @@ export default function TeacherForm({
       avatarUrl: values.avatarUrl || undefined,
       password: values.password || "",
       schoolId: values.schoolId,
-      primaryRole: "teacher",
-      roles: ["teacher"],
+      primaryRole: "TEACHER",
+      roles: ["TEACHER"],
       employeeId: values.employeeId,
       qualification: values.qualification || undefined,
       specialization: values.specialization || undefined,
@@ -294,7 +294,7 @@ export default function TeacherForm({
         </Section>
 
         <Section title="School">
-          {variant === "super_admin" ? (
+          {variant === "ADMIN" ? (
             <Controller
               control={control}
               name="schoolId"

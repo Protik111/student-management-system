@@ -5,9 +5,9 @@ import {
   listTeachers,
 } from "@/lib/actions/teachers";
 
-export const metadata = { title: "Teachers · Super Admin" };
+export const metadata = { title: "Teachers · School Admin" };
 
-export default async function SuperAdminTeachersPage() {
+export default async function SchoolAdminTeachersPage() {
   const me = await requirePermission("manage_teachers");
   const [teachers, options] = await Promise.all([
     listTeachers(),
@@ -16,7 +16,7 @@ export default async function SuperAdminTeachersPage() {
 
   return (
     <TeachersList
-      variant="super_admin"
+      variant="ADMIN"
       initialTeachers={teachers}
       options={options}
       currentUserId={me.id}

@@ -20,7 +20,7 @@ import {
 } from "@/lib/actions/students";
 
 interface StudentFormProps {
-  variant: "super_admin" | "school_admin";
+  variant: "ADMIN";
   options: StudentFormOptions;
   initial?: {
     id: string;
@@ -71,7 +71,7 @@ export default function StudentForm({
   const toast = useToast();
 
   const defaultSchoolId =
-    variant === "school_admin"
+    variant === "ADMIN"
       ? options.schools[0]?.id ?? ""
       : initial?.schoolId ?? "";
 
@@ -206,8 +206,8 @@ export default function StudentForm({
       avatarUrl: values.avatarUrl || undefined,
       password: values.password || "",
       schoolId: values.schoolId,
-      primaryRole: "student",
-      roles: ["student"],
+      primaryRole: "STUDENT",
+      roles: ["STUDENT"],
       admissionNo: values.admissionNo,
       dateOfBirth: values.dateOfBirth || undefined,
       gender: values.gender,
@@ -333,7 +333,7 @@ export default function StudentForm({
         </Section>
 
         <Section title="School & class">
-          {variant === "super_admin" ? (
+          {variant === "ADMIN" ? (
             <Controller
               control={control}
               name="schoolId"
