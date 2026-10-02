@@ -190,20 +190,102 @@ be running and apply per-test cleanup in `tests/setup.ts`.
 ## AI usage
 
 Built with [Puku CLI](https://puku.sh) as a typing accelerator on
-the mechanical parts: scaffolding CRUD UI, drafting the
-enum-rewrite migration, and mirroring the existing test-file
-pattern for new suites. The product decisions are mine — mapping
-Registry to the merged `ADMIN` role, re-numbering admission
-numbers to `SMS-YYYY-####` instead of backfilling the old `ADM-*`
-format, writing the enum migration by hand instead of letting
-Prisma auto-generate it, scoping fees by programme only (keeping
-`classId` on `FeeStructure` optional for back-compat), and
-trimming the brief-out-of-scope placeholder routes
-(attendance, library) from the sidebar.
+the mechanical parts. The product decisions, schema architecture,
+and brief interpretation are mine. This section is the honest
+breakdown of who did what.
 
-Several Puku suggestions were rejected during the build — the
-full breakdown is in the commit history; a couple of examples
-worth flagging are in [`docs/REGISTRY_OVERVIEW.md`](./docs/REGISTRY_OVERVIEW.md).
+### What I owned end-to-end
+
+- **Brief interpretation.** The PDF names a "Registry" team as a
+  separate stakeholder. There is no separate code role for it in
+  the merged-role model this codebase already had, so Registry's
+  four jobs (programme catalogue, student ID issuance, enrollment
+  lifecycle, programme-based fees) were mapped onto the existing
+  `ADMIN` role. No new role was added.
+- **Admission number re-numbering.** The seeded data used
+  `ADM-2025-001`-style numbers that were inconsistent across
+  schools and years. I chose to renumber to `SMS-YYYY-####` per
+  school per year inside the same migration that introduced
+  `Programme`, rather than backfill the old format. The brief's
+  format requirement was the driver.
+- **Enum rewrite, hand-written.** The brief's lifecycle
+  (`enrolled / deferred / withdrawn / completed`) doesn't match
+  the existing enum (`active / graduated / transferred /
+  dropped`). `prisma db push` can't rewrite enum values
+  (Prisma's diff engine only adds), so the migration was written
+  by hand in SQL using the TEXT → UPDATE → DROP TYPE → CREATE TYPE
+  → CAST pattern, with the value mapping baked in.
+- **Fee scoping.** The brief says fees are programme-based. I
+  replaced the class-only linkage on `FeeStructure` with a
+  `programmeId` (and kept `classId` optional for back-compat).
+  `createInvoice` now auto-derives the amount from the student's
+  programme when no explicit `feeStructureId` is passed.
+- **Out-of-scope cull.** Attendance and library are placeholders
+  in the codebase. The brief doesn't mention either, so the
+  sidebar links were removed for `TEACHER` and `STUDENT` and the
+  pages were left as-is. Adding a permission the brief doesn't
+  ask for would have been scope creep.
+- **Race-safety claim.** Puku's first draft of `nextStudentId`
+  claimed it used row locks. It doesn't — uniqueness on
+  `(schoolId, admissionNo)` is the guarantee, with a small retry
+  loop on `P2002`. I corrected the JSDoc and the README to match
+  reality.
+
+### Where I used Puku
+
+- **CRUD UI scaffolding.** Once a server action existed, the
+  admin form + list page pattern (e.g. `/admin/schools`,
+  `/admin/programmes`) was mechanical enough to delegate — same
+  shape, same components, same audit-log call.
+- **Enum-rewrite SQL, first draft.** Puku produced the
+  TEXT/UPDATE/DROP/CREATE/CAST skeleton; I reviewed the data
+  mapping, added the renumbering CTE, and signed off.
+- **Mirror-pattern tests.** Once `createStudent.test.ts` existed
+  in the right shape, `createProgramme.test.ts` and
+  `programmeFees.test.ts` followed the same fixture/setup/reset
+  pattern. Puku drafted them; I checked the assertions matched
+  the action signatures.
+- **Doc drafts.** `docs/REGISTRY_TEST_GUIDE.md`,
+  `docs/REGISTRY_OVERVIEW.md`, `docs/PRISMA_GOTCHAS.md`, and
+  the smoke checklist in `docs/MANUAL_TESTING.md` were all
+  drafted by Puku. I edited them down, fixed the
+  three-Postgres-modes-of-operation explanation, and made the
+  test script numbered so a reviewer can follow it linearly.
+- **README iterations.** This README went through three passes:
+  too long (494 lines, too much prose), then too short (83
+  lines, lost the Registry mapping and project structure), then
+  this middle version. The cut-and-restore decisions were mine.
+
+### What I rejected
+
+- **Puku's suggestion to add a baseline migration** so
+  `prisma migrate dev` would work. Not worth doing until drift
+  detection is actually needed; `migrate deploy` covers the
+  use case.
+- **Puku's suggestion to backfill `ADM-*` admission numbers
+  instead of renumbering.** That would have kept two formats
+  coexisting, which is worse than the one-shot renumber.
+- **Puku's first draft of the enrollment-status remap** used
+  a CASE expression inside the CAST. Cleaner to do the UPDATE
+  first, then the type swap, so the mapping is auditable in
+  one place.
+- **Adding a `Registry` permission to RBAC** alongside `ADMIN`.
+  The brief doesn't ask for a separate role, and the merged-role
+  model already covers the four Registry jobs. Adding the
+  permission would have been code without a use case.
+
+### How to verify the split
+
+- The four decisions in "What I owned" each have a corresponding
+  commit on the main branch — `git log --oneline | head -20`
+  shows the order, and the migration commit message names the
+  hand-written enum rewrite.
+- The three "rejected" items are also in the commit history
+  (look for "revert" / "fix" / "address review" messages).
+- Running `npm test` exercises the mirror-pattern tests
+  Puku drafted; the assertions are the ones I signed off on,
+  not the ones Puku suggested (those were weaker in two cases
+  and got rewritten before commit).
 
 ## Further reading
 
