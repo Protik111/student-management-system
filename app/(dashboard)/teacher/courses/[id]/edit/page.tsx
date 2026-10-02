@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import CourseForm from "@/components/courses/CourseForm";
 import { requirePermission } from "@/lib/auth-helpers";
 import { getCourse } from "@/lib/actions/courses";
-import { listCategories } from "@/lib/actions/categories";
+import { listCategoriesForSelect } from "@/lib/actions/categories";
 
 export const metadata = { title: "Edit course · Teacher" };
 
@@ -16,7 +16,7 @@ export default async function TeacherEditCoursePage({
   const { id } = await params;
   const [course, categories] = await Promise.all([
     getCourse(id),
-    listCategories(),
+    listCategoriesForSelect(),
   ]);
   if (!course) notFound();
 

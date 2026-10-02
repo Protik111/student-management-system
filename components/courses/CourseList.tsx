@@ -19,8 +19,15 @@ import {
   deleteCourse,
   toggleCourseActive,
 } from "@/lib/actions/courses";
-import type { CategoryListItem } from "@/lib/actions/categories";
 import SearchInput from "@/components/admin/shared/SearchInput";
+
+/**
+ * Minimal shape the course-list dropdown needs. Both the heavyweight
+ * `CategoryListItem` (from `listCategories`, admin-only) and the
+ * lightweight return of `listCategoriesForSelect` (view-gated) are
+ * assignable — only `id` + `name` are read.
+ */
+type CategoryOption = { id: string; name: string };
 
 interface CourseListProps {
   /** "ADMIN" / "TEACHER" / "STUDENT" — drives header copy, links, and CTA visibility. */
@@ -29,7 +36,7 @@ interface CourseListProps {
   total: number;
   page: number;
   pageSize: number;
-  categories: CategoryListItem[];
+  categories: CategoryOption[];
   /** Path prefix used to build course detail/edit links. */
   hrefBase: "/admin" | "/teacher" | "/student";
   /** Whether the "New course" CTA is shown. */

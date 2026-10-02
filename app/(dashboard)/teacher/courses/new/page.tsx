@@ -1,12 +1,12 @@
 import { requirePermission } from "@/lib/auth-helpers";
 import CourseForm from "@/components/courses/CourseForm";
-import { listCategories } from "@/lib/actions/categories";
+import { listCategoriesForSelect } from "@/lib/actions/categories";
 
 export const metadata = { title: "New course · Teacher" };
 
 export default async function NewTeacherCoursePage() {
   await requirePermission("manage_courses");
-  const categories = await listCategories();
+  const categories = await listCategoriesForSelect();
   return (
     <CourseForm
       scope="TEACHER"

@@ -1,7 +1,7 @@
 import { requirePermission } from "@/lib/auth-helpers";
 import CourseList from "@/components/courses/CourseList";
 import { listCourses } from "@/lib/actions/courses";
-import { listCategories } from "@/lib/actions/categories";
+import { listCategoriesForSelect } from "@/lib/actions/categories";
 
 export const metadata = { title: "Browse Courses · Student" };
 
@@ -28,7 +28,7 @@ export default async function StudentBrowsePage({
     categoryId: params.categoryId,
     isActive: true,
   });
-  const categories = await listCategories();
+  const categories = await listCategoriesForSelect();
   return (
     <CourseList
       scope="STUDENT"

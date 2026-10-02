@@ -91,6 +91,11 @@ export function dashboardPathFor(role: Role): string {
 /**
  * Sidebar nav items per role. The merged ADMIN role exposes the union of former
  * super_admin + school_admin surfaces. Course marketplace links are included.
+ *
+ * Note: routes that exist only as `ComingSoon` placeholders (i.e. not in the
+ * PEN Global brief) are intentionally omitted from the sidebar — they don't
+ * warrant a clickable link. They still resolve if hit directly, but the user
+ * shouldn't see them in the navigation.
  */
 export const ROLE_NAV: Record<Role, { href: string; label: string }[]> = {
   ADMIN: [
@@ -111,9 +116,6 @@ export const ROLE_NAV: Record<Role, { href: string; label: string }[]> = {
     { href: "/teacher/courses", label: "My Courses" },
     { href: "/teacher/assessments", label: "Assessments" },
     { href: "/teacher/results", label: "Enter Results" },
-    { href: "/teacher/classes", label: "My Classes" },
-    { href: "/teacher/attendance", label: "Attendance" },
-    { href: "/teacher/library", label: "Library" },
   ],
   STUDENT: [
     { href: "/student", label: "Overview" },
@@ -122,7 +124,5 @@ export const ROLE_NAV: Record<Role, { href: string; label: string }[]> = {
     { href: "/student/assessments", label: "My Assessments" },
     { href: "/student/results", label: "My Results" },
     { href: "/student/fees", label: "My Fees" },
-    { href: "/student/attendance", label: "My Attendance" },
-    { href: "/student/library", label: "Library" },
   ],
 };

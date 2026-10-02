@@ -178,35 +178,41 @@ forced to its own `schoolId` regardless of what the form says.
 ### 5.3 Teacher (`teacher@sms.local`)
 
 1. Land on the dashboard. You see a personal overview.
-2. Sidebar shows **Classes / Attendance / Results / Library** — all four
-   are currently **"Coming soon" placeholders** tagged with the module
-   number they ship in (Modules 4–6).
+2. Sidebar shows **Overview / My Courses / Assessments / Enter Results**
+   — only routes that work or are part of the PEN Global brief. The
+   historical `Classes / Attendance / Library` placeholders have been
+   removed from the nav since they fall outside the brief.
 3. The **profile / settings** page (when implemented) will be read-only.
 
 ### 5.4 Student (`student@sms.local`)
 
-Mirror of the teacher experience: read-only personal view plus placeholder
-nav for **Results / Attendance / Library**.
+Mirror of the teacher experience: read-only personal view. Sidebar shows
+**Overview / My Courses / Browse Courses / My Assessments / My Results /
+My Fees**. The historical `Attendance / Library` placeholders have been
+removed from the nav.
 
 ---
 
 ## 6. Placeholder routes (intentional)
 
-These routes render an honest **"Coming soon"** page tagged with the
-module number they ship in — they're not bugs. Clicking them should not
-crash the app:
+The PEN Global brief covers four workflows (Student Enrolment, Fees &
+Payments, Assessment Submission, Marksheet & Results). The sidebar only
+links to those plus a small set of admin surfaces.
 
-| Path | Module |
-|---|---|
-| `/teacher/classes` | Module 4 |
-| `/teacher/attendance` | Module 5 |
-| `/teacher/results` | Module 5 |
-| `/teacher/library` | Module 6 |
-| `/student/results` | Module 5 |
-| `/student/attendance` | Module 5 |
-| `/student/library` | Module 6 |
-| `/admin/classes` | Module 4 |
-| `/admin/subjects` | Module 4 |
+The following routes still resolve to an honest **"Coming soon"** page if
+you hit them directly (e.g. from an old link), but they are **not** in
+the sidebar because they're outside the brief — they're not bugs, they
+just don't have a feature owner:
+
+| Path | Module | Audience |
+|---|---|---|
+| `/teacher/classes` | Module 4 | Teacher |
+| `/teacher/attendance` | Module 5 | Teacher |
+| `/teacher/library` | Module 6 | Teacher |
+| `/student/attendance` | Module 5 | Student |
+| `/student/library` | Module 6 | Student |
+| `/admin/classes` | Module 4 | Admin |
+| `/admin/subjects` | Module 4 | Admin |
 | `/admin/exams` | Module 5 |
 | `/admin/library` | Module 6 |
 | `/admin/reports` | Module 7 |

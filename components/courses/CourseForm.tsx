@@ -19,11 +19,18 @@ import {
   updateCourse,
   listTeachersForSelect,
 } from "@/lib/actions/courses";
-import type { CategoryListItem } from "@/lib/actions/categories";
+
+/**
+ * Minimal shape the course-form dropdown needs. Both the heavyweight
+ * `CategoryListItem` (admin-only `listCategories`) and the lightweight
+ * return of `listCategoriesForSelect` (view-gated) are assignable — only
+ * `id` + `name` are read.
+ */
+type CategoryOption = { id: string; name: string };
 
 interface CourseFormProps {
   scope: "ADMIN" | "TEACHER";
-  categories: CategoryListItem[];
+  categories: CategoryOption[];
   teachers: { id: string; fullName: string }[];
   initial?: {
     id: string;
