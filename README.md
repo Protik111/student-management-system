@@ -74,14 +74,12 @@ has both variants commented.
 
 ## Demo credentials
 
-All seed users share the password **`admin123`**.
-
-| Role | Email | What they can do |
-|---|---|---|
-| Super admin | `admin@sms.local` | Create schools, jump into any tenant, manage platform users |
-| School admin | `school.admin@sms.local` | Manage Sunrise Academy users, students, programmes, fees |
-| Teacher | `teacher@sms.local` | Read-only on own profile; placeholder nav for classes/attendance/results/library |
-| Student | `student@sms.local` | Read-only on own profile; placeholder nav for results/attendance/library |
+| Role | Email | Password | What they can do |
+|---|---|---|---|
+| Super admin | `admin@sms.local` | `admin123` | Create schools, jump into any tenant, manage platform users |
+| School admin | `school.admin@sms.local` | `admin123` | Manage Sunrise Academy users, students, programmes, fees |
+| Teacher | `teacher@sms.local` | `admin123` | My Courses, Assessments, Enter Results |
+| Student | `student@sms.local` | `admin123` | My Courses, Browse Courses, My Assessments, My Results, My Fees |
 
 The seed creates one school (`Sunrise Academy`), two programmes
 (`BSC-CS` and `BBA`), one class (`Grade 10 - A`), one teacher
