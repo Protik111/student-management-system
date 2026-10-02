@@ -204,7 +204,7 @@ export default function CsvImportWizard({ variant, hrefBack }: CsvImportWizardPr
                   <tr className="border-b border-border text-meta uppercase tracking-[0.06em] text-text-subtle">
                     <th className="px-3 py-2 text-left font-semibold">Email</th>
                     <th className="px-3 py-2 text-left font-semibold">Full Name</th>
-                    <th className="px-3 py-2 text-left font-semibold">Admission #</th>
+                    <th className="px-3 py-2 text-left font-semibold">Programme</th>
                     <th className="px-3 py-2 text-left font-semibold">Class</th>
                   </tr>
                 </thead>
@@ -216,7 +216,7 @@ export default function CsvImportWizard({ variant, hrefBack }: CsvImportWizardPr
                       </td>
                       <td className="px-3 py-2 text-text">{r.fullName}</td>
                       <td className="px-3 py-2 font-mono text-meta text-text-muted">
-                        {r.admissionNo}
+                        {r.programmeCode ?? <span className="text-text-subtle">—</span>}
                       </td>
                       <td className="px-3 py-2 text-text-muted">
                         {r.currentClassName

@@ -2,9 +2,9 @@
 /**
  * Seed script. Run via `npm run db:seed`.
  *
- * Creates a super admin, one demo school, and one user per remaining role
- * (school admin, teacher, student) so you can immediately exercise every
- * dashboard. Idempotent — safe to re-run.
+ * Creates a super admin, one demo school, demo programmes (Registry model),
+ * and one user per remaining role (school admin, teacher, student) so you
+ * can immediately exercise every dashboard. Idempotent — safe to re-run.
  */
 import bcrypt from "bcryptjs";
 
@@ -12,6 +12,7 @@ import { prisma } from "../lib/db/prisma";
 
 const DEMO_PASSWORD = "admin123";
 const ACADEMIC_YEAR = "2025-2026";
+const ACADEMIC_YEAR_NUM = 2025;
 
 async function main() {
   console.log("🌱 Seeding SMS database…");
@@ -29,6 +30,36 @@ async function main() {
     },
   });
   console.log(`  ✓ school: ${school.name} (${school.id})`);
+
+  // ─── 1b. Programmes (Registry model) ──────────────────────────────────
+  // Two programmes per school: one science, one business. The migration
+  // already backfills a 'GEN' programme if none exists; we leave it alone and
+  // add the named ones.
+  const bsc = await prisma.programme.upsert({
+    where: { schoolId_code: { schoolId: school.id, code: "BSC-CS" } },
+    update: {},
+    create: {
+      id: "prog_bsc_cs",
+      schoolId: school.id,
+      name: "BSc Computer Science",
+      code: "BSC-CS",
+      durationYears: 4,
+      isActive: true,
+    },
+  });
+  const bba = await prisma.programme.upsert({
+    where: { schoolId_code: { schoolId: school.id, code: "BBA" } },
+    update: {},
+    create: {
+      id: "prog_bba",
+      schoolId: school.id,
+      name: "BBA — Business Administration",
+      code: "BBA",
+      durationYears: 4,
+      isActive: true,
+    },
+  });
+  console.log(`  ✓ programmes: ${bsc.code} ${bba.code}`);
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
@@ -178,7 +209,10 @@ async function main() {
       id: "student_1",
       userId: studentUser.id,
       schoolId: school.id,
-      admissionNo: "ADM-2025-001",
+      // Renumbered by the migration to SMS-2025-0001.
+      admissionNo: "SMS-2025-0001",
+      programmeId: bsc.id,
+      academicYear: ACADEMIC_YEAR_NUM,
       dateOfBirth: new Date("2009-05-15"),
       gender: "male",
       currentClassId: klass.id,
@@ -203,10 +237,10 @@ async function main() {
       studentId: student.id,
       classId: klass.id,
       academicYear: ACADEMIC_YEAR,
-      status: "active",
+      status: "enrolled",
     },
   });
-  console.log(`  ✓ student record: ${student.admissionNo} enrolled in Grade 10-A`);
+  console.log(`  ✓ student record: ${student.admissionNo} enrolled in Grade 10-A (${bsc.code})`);
 
   // ─── 6b. Fee structure + sample invoice + payment ────────────────────
   const feeStructure = await prisma.feeStructure.upsert({
@@ -216,6 +250,7 @@ async function main() {
       id: "fee_tuition_q1",
       schoolId: school.id,
       classId: klass.id,
+      programmeId: bsc.id,
       name: "Term 1 Tuition",
       amountCents: 300000,
       frequency: "termly",

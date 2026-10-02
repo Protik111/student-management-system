@@ -20,7 +20,7 @@ import {
   type PaymentCreateInput,
 } from "@/lib/actions/schemas";
 import { nextInvoiceNo, nextReceiptNo } from "@/lib/sequences";
-import { formatCents } from "@/lib/fees-utils";
+import { formatCents, deriveStatus } from "@/lib/fees-utils";
 import type { FeeStatus, PaymentMethod } from "@prisma/client";
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
@@ -34,20 +34,6 @@ function flattenZod(err: import("zod").ZodError): Record<string, string[]> {
   return out;
 }
 
-/** Auto-compute invoice status from amount paid so far vs amount due. */
-function deriveStatus(
-  amountCents: number,
-  payments: { amountCents: number }[],
-  dueDate: Date,
-): FeeStatus {
-  const paid = payments.reduce((s, p) => s + p.amountCents, 0);
-  if (paid <= 0) {
-    return dueDate.getTime() < Date.now() ? "overdue" : "pending";
-  }
-  if (paid < amountCents) return "partial";
-  return "paid";
-}
-
 /* ─── Fee structures ────────────────────────────────────────────────────── */
 
 export interface FeeStructureItem {
@@ -59,6 +45,8 @@ export interface FeeStructureItem {
   isActive: boolean;
   classId: string | null;
   className: string | null;
+  programmeId: string | null;
+  programmeName: string | null;
   createdAt: Date;
 }
 
@@ -70,7 +58,10 @@ export async function listFeeStructures(): Promise<FeeStructureItem[]> {
       : { schoolId: actor.schoolId ?? "__none__" };
   const rows = await prisma.feeStructure.findMany({
     where,
-    include: { class: { select: { name: true, section: true } } },
+    include: {
+      class: { select: { name: true, section: true } },
+      programme: { select: { name: true, code: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
   return rows.map((r) => ({
@@ -82,6 +73,8 @@ export async function listFeeStructures(): Promise<FeeStructureItem[]> {
     isActive: r.isActive,
     classId: r.classId,
     className: r.class ? `${r.class.name}-${r.class.section}` : null,
+    programmeId: r.programmeId,
+    programmeName: r.programme ? `${r.programme.code} — ${r.programme.name}` : null,
     createdAt: r.createdAt,
   }));
 }
@@ -104,11 +97,26 @@ export async function createFeeStructure(
   const data = parsed.data as {
     name: string;
     classId: string | null | undefined;
+    programmeId: string | null | undefined;
     amountCents: number;
     frequency: string;
     dueDay: number | null;
     isActive: boolean;
   };
+
+  // If programmeId is provided, verify it belongs to this school.
+  if (data.programmeId) {
+    const prog = await prisma.programme.findUnique({
+      where: { id: data.programmeId },
+      select: { schoolId: true },
+    });
+    if (!prog) return fail("Programme not found", { programmeId: ["Invalid programme"] });
+    if (prog.schoolId !== schoolId) {
+      return fail("Programme belongs to a different school", {
+        programmeId: ["Cross-school programme not allowed"],
+      });
+    }
+  }
 
   try {
     const created = await prisma.$transaction(async (tx) => {
@@ -121,6 +129,7 @@ export async function createFeeStructure(
           frequency: data.frequency,
           dueDay: data.dueDay,
           classId: data.classId ?? null,
+          programmeId: data.programmeId ?? null,
           isActive: data.isActive,
         },
       });
@@ -130,7 +139,11 @@ export async function createFeeStructure(
         action: "fees.structure_create",
         entityType: "FeeStructure",
         entityId: fs.id,
-        payload: { name: fs.name, amountCents: fs.amountCents },
+        payload: {
+          name: fs.name,
+          amountCents: fs.amountCents,
+          programmeId: fs.programmeId,
+        },
       });
       return fs;
     });
@@ -286,7 +299,12 @@ export async function createInvoice(
 
   const student = await prisma.student.findUnique({
     where: { id: data.studentId },
-    select: { id: true, schoolId: true, userId: true },
+    select: {
+      id: true,
+      schoolId: true,
+      userId: true,
+      programmeId: true,
+    },
   });
   if (!student) return fail("Student not found");
   if (actor.role === "ADMIN" && student.schoolId !== actor.schoolId) {
@@ -294,6 +312,46 @@ export async function createInvoice(
   }
 
   if (!data.dueDate) return fail("Due date is required", { dueDate: ["Pick a date"] });
+
+  // Auto-derive amountCents from the student's programme's active fee
+  // structure when no explicit feeStructureId is provided. Keeps the
+  // Registry model consistent: programme → fee → invoice.
+  let amountCents = data.amountCents;
+  let feeStructureId: string | null = data.feeStructureId ?? null;
+  let description = data.description;
+  if (feeStructureId) {
+    const fs = await prisma.feeStructure.findUnique({ where: { id: feeStructureId } });
+    if (!fs) return fail("Fee structure not found", { feeStructureId: ["Invalid"] });
+    if (fs.schoolId !== student.schoolId) {
+      return fail("Fee structure belongs to a different school", {
+        feeStructureId: ["Cross-school fee structure not allowed"],
+      });
+    }
+    amountCents = fs.amountCents;
+    if (!description) description = fs.name;
+  } else if (student.programmeId) {
+    // Pick the first active fee structure tied to the student's programme.
+    const fs = await prisma.feeStructure.findFirst({
+      where: {
+        schoolId: student.schoolId,
+        programmeId: student.programmeId,
+        isActive: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (fs) {
+      amountCents = fs.amountCents;
+      feeStructureId = fs.id;
+      if (!description) description = fs.name;
+    }
+  }
+
+  if (!amountCents || amountCents <= 0) {
+    return fail(
+      "Amount is required — either provide one, pick a fee structure, or assign the student a programme with an active fee structure",
+      { amountCents: ["Could not auto-derive from programme"] },
+    );
+  }
 
   try {
     const created = await prisma.$transaction(async (tx) => {
@@ -303,10 +361,10 @@ export async function createInvoice(
           id: crypto.randomUUID(),
           schoolId: student.schoolId,
           studentId: student.id,
-          feeStructureId: data.feeStructureId || null,
+          feeStructureId: feeStructureId,
           invoiceNo,
-          description: data.description,
-          amountCents: data.amountCents,
+          description: description,
+          amountCents: amountCents,
           dueDate: data.dueDate!,
           status: "pending",
           issuedById: actor.id,
@@ -322,7 +380,9 @@ export async function createInvoice(
         payload: {
           invoiceNo,
           studentId: student.id,
-          amountCents: data.amountCents,
+          amountCents: amountCents,
+          feeStructureId,
+          programmeId: student.programmeId,
           dueDate: data.dueDate,
         },
       });
@@ -330,9 +390,9 @@ export async function createInvoice(
         recipientUserId: student.userId,
         type: "invoice_issued",
         title: `New invoice: ${invoiceNo}`,
-        body: `${data.description} — amount due ${formatCents(data.amountCents)} by ${data.dueDate!.toLocaleDateString()}.`,
+        body: `${description} — amount due ${formatCents(amountCents)} by ${data.dueDate!.toLocaleDateString()}.`,
         link: "/student/fees",
-        payload: { invoiceId: inv.id, amountCents: data.amountCents },
+        payload: { invoiceId: inv.id, amountCents },
       });
       return inv;
     });

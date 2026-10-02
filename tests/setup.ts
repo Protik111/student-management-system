@@ -59,6 +59,8 @@ export async function resetTestDb() {
   await prisma.exam.deleteMany();
   await prisma.classSubject.deleteMany();
   await prisma.enrollment.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.feeStructure.deleteMany();
   await prisma.subject.deleteMany();
   await prisma.class.deleteMany();
   await prisma.student.deleteMany();
@@ -66,6 +68,7 @@ export async function resetTestDb() {
   await prisma.auditLog.deleteMany();
   await prisma.userRole.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.programme.deleteMany();
   await prisma.school.deleteMany();
 }
 
@@ -130,7 +133,19 @@ export async function seedFixtures() {
     },
   });
 
-  return { school, otherSchool };
+  // ─── Programme (every Student must belong to one — Registry model) ──
+  const programme = await prisma.programme.create({
+    data: {
+      id: "prog_test_1",
+      schoolId: school.id,
+      name: "Test Programme",
+      code: "TST",
+      durationYears: 4,
+      isActive: true,
+    },
+  });
+
+  return { school, otherSchool, programme };
 }
 
 export { prisma };

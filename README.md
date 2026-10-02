@@ -2,8 +2,34 @@
 
 A multi-tenant school management web app built as a technical assessment.
 Implements Modules 1–3 of the brief (Auth + RBAC, Schools & Users CRUD,
-Students & Teachers CRUD) plus a Vitest integration suite and placeholder
-pages for the navigation entries that ship with later modules.
+Students & Teachers CRUD) plus the **Registry / Programme** refactor that
+landed in the PEN Global pass: a `Programme` model, programme-based fee
+structures, the `enrolled / deferred / withdrawn / completed` enrollment
+lifecycle, and auto-generated `SMS-YYYY-####` student IDs. Ships with a
+Vitest integration suite and placeholder pages for the navigation
+entries that ship in later modules.
+
+## Registry (PEN Global)
+
+The brief refers to a **"Registry"** stakeholder voice. The Registry is
+**not** a separate code role — it maps to the merged **ADMIN** role
+(`/admin` dashboard). Conceptually, the Registry team:
+
+- Owns the catalogue of **Programmes** (degrees/tracks) — `/admin/programmes`.
+- Issues **Student IDs** in the `SMS-YYYY-####` format per school, per year.
+- Manages the **enrollment lifecycle** (`enrolled → deferred / withdrawn / completed`).
+- Sets the **programme-based fee structure** that `createInvoice` auto-derives
+  from when no explicit `feeStructureId` is supplied.
+
+The full data-model is **programme-based**: every `Student` belongs to a
+`Programme`, every `FeeStructure` is attached to a `Programme` (with
+`classId` retained as an optional sub-scope), and every `Invoice`'s amount
+is derived from `student.programme → active FeeStructure`.
+
+> A hands-on test script for these features (programmes CRUD,
+> auto-generated `SMS-YYYY-####` IDs, programme-based fees, the
+> overdue widget, the CSV import, and cross-school guards) lives in
+> [`docs/REGISTRY_TEST_GUIDE.md`](./docs/REGISTRY_TEST_GUIDE.md).
 
 ## Stack
 
@@ -53,9 +79,14 @@ All seed users share the password **`admin123`**.
 | Role | Email | What they can do |
 |---|---|---|
 | Super admin | `admin@sms.local` | Create schools, jump into any tenant, manage platform users |
-| School admin | `school.admin@sms.local` | Manage Sunrise Academy users, students, teachers |
+| School admin | `school.admin@sms.local` | Manage Sunrise Academy users, students, programmes, fees |
 | Teacher | `teacher@sms.local` | Read-only on own profile; placeholder nav for classes/attendance/results/library |
 | Student | `student@sms.local` | Read-only on own profile; placeholder nav for results/attendance/library |
+
+The seed creates one school (`Sunrise Academy`), two programmes
+(`BSC-CS` and `BBA`), one class (`Grade 10 - A`), one teacher
+(`Ayesha Siddiqua`), one student (`Rahim Ahmed`, `SMS-2025-0001`) already
+enrolled, one subject (`Mathematics`), and one library book.
 
 ## Project structure
 
@@ -76,11 +107,17 @@ lib/
 │   ├── schemas.ts        ← Zod schemas + input/output type aliases
 │   ├── auth.ts           ← login/logout/getCurrentSession
 │   ├── schools.ts        ← create/update/toggleActive for schools
+│   ├── programmes.ts     ← list/create/update/toggleActive for programmes
+│   ├── fees.ts           ← fee structures + invoices (auto-derives from programme)
 │   ├── users.ts          ← create/update/toggleActive + temp-password flow
-│   ├── students.ts       ← create/update/toggleActive + enroll + audit logs
-│   └── teachers.ts       ← create/update/toggleActive + audit logs
+│   ├── students.ts       ← create/update/toggleActive + auto SMS-#### ids
+│   ├── enrollments.ts    ← enrollment lifecycle (enrolled/deferred/withdrawn/completed)
+│   ├── teachers.ts       ← create/update/toggleActive + audit logs
+│   └── students-import.ts ← bulk CSV import with programmeCode
 ├── auth.ts, auth-helpers.ts   ← NextAuth wiring + requireRole/requirePermission
 ├── rbac.ts               ← PERMISSIONS matrix, ROLE_NAV, nav helpers
+├── sequences.ts          ← nextInvoiceNo, nextReceiptNo, nextStudentId
+├── fees-utils.ts         ← formatCents, deriveStatus (shared client/server)
 ├── db/prisma.ts          ← singleton Prisma client (driver-adapter)
 └── ...
 
@@ -88,16 +125,27 @@ components/
 ├── ui/                   ← shadcn-style primitives (Button, Card, …)
 ├── shell/                ← Sidebar, header, ComingSoon, RoleOverview
 ├── auth/                 ← login form
-└── admin/{schools,users,students,teachers}/   ← CRUD UIs
+├── admin/
+│   ├── schools/          ← school CRUD UI
+│   ├── programmes/       ← programme CRUD UI (Registry)
+│   ├── users/            ← user CRUD UI
+│   ├── students/         ← student CRUD UI + CSV import wizard
+│   ├── enrollments/      ← enrollment status control + history
+│   └── teachers/         ← teacher CRUD UI
+└── fees/                 ← FeesHub, FeeStructureForm, invoice list
 
 prisma/
 ├── schema.prisma         ← full DB schema
-└── seed.ts               ← idempotent demo seed
+├── seed.ts               ← idempotent demo seed (programmes, fees, student)
+└── migrations/           ← versioned SQL migrations
 
 tests/
 ├── setup.ts              ← isolated test DB, reset/seed helpers
 ├── stubs/server-only.ts  ← no-op stub for the `server-only` package
-└── actions/createStudent.test.ts   ← 4 integration cases
+└── actions/
+    ├── createStudent.test.ts   ← 4 integration cases
+    ├── createProgramme.test.ts ← 3 integration cases
+    └── programmeFees.test.ts   ← 3 integration cases
 ```
 
 ## Architecture notes
@@ -163,10 +211,17 @@ Zod schema, real audit-log writes, and real transaction rollback — only
 
 What's covered today:
 
-- **`createStudent`** — atomic happy path (User + UserRole + Student +
-  Enrollment + two audit rows), email uniqueness rejection, admissionNo
-  uniqueness rejection per school, cross-school class rejection with no row
-  leaks.
+- **`createStudent`** (`tests/actions/createStudent.test.ts`) — atomic
+  happy path (User + UserRole + Student + Enrollment + two audit rows),
+  email uniqueness rejection, cross-school class rejection with no row
+  leaks, missing programme rejection, admission-number auto-generation
+  (`SMS-YYYY-####`), and sequential non-colliding IDs.
+- **`createProgramme`** (`tests/actions/createProgramme.test.ts`) —
+  happy path + audit, duplicate code per school, cross-school guard.
+- **`programmeFees`** (`tests/actions/programmeFees.test.ts`) —
+  `createFeeStructure` with `programmeId`, `createInvoice` auto-derives
+  amount from the student's programme, and a graceful refusal when no
+  amount can be derived.
 
 What's **not** covered yet: `update*`, `toggle*Active`, the rest of the action
 chain (`schools`, `users`, `teachers`). These will land as their respective
@@ -200,3 +255,29 @@ modules ship.
 - **No CSRF token rotation** — Next.js server actions have built-in
   same-origin protection via the action ID; explicit CSRF tokens are not
   added.
+
+## AI Usage
+
+This codebase was built with AI assistance (Puku CLI, an AI coding
+assistant developed by the Puku AI team). AI contributed to:
+
+- **Migration design** — the `Programme` table, `EnrollmentStatus` enum
+  rewrite (TEXT → DROP → CREATE TYPE → CAST pattern), and the per-school
+  `ROW_NUMBER()` renumbering of `admissionNo` were all planned and
+  validated against the brief before any code was written.
+- **Refactor scope** — `deriveStatus` was extracted to `lib/fees-utils.ts`
+  so the new overdue widget on `/admin/fees` could call it from a server
+  component without round-tripping through a "use server" action.
+- **Test scaffolding** — the three test files (`createStudent`,
+  `createProgramme`, `programmeFees`) follow the existing integration-test
+  pattern in `tests/setup.ts` and the same `vi.mock("@/auth")` stub.
+- **Boilerplate** — `ProgrammeForm`/`ProgrammesList` mirror
+  `SchoolForm`/`SchoolsList`; the new programme action mirrors
+  `lib/actions/schools.ts`; the status-label dictionaries in
+  `EnrollmentsList` / `SchoolEnrollmentsList` were just remapped onto the
+  new enum.
+
+All public behaviour was cross-checked against the brief, the schema was
+validated with `prisma validate`, and every server action still funnels
+through `prisma.$transaction` with `writeAuditLog(tx, …)` so the audit
+guarantees from earlier modules carry over.

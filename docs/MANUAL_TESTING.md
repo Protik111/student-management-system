@@ -4,6 +4,13 @@ A walkthrough for exercising the SMS app by hand — covers setup, what each
 role sees, a guided tour of the CRUD flows, and the things that are still
 placeholders.
 
+> **Looking for a hands-on test script for the new Registry/Programme
+> features (SMS-#### IDs, programme-based fees, overdue widget, CSV
+> import with `programmeCode`)?** See
+> [`docs/REGISTRY_TEST_GUIDE.md`](./REGISTRY_TEST_GUIDE.md) — a numbered,
+> step-by-step test plan with pass/fail checklists and a troubleshooting
+> matrix.
+
 ---
 
 ## 1. Prerequisites
@@ -70,9 +77,11 @@ All four demo users share the password **`admin123`**.
 | Teacher | `teacher@sms.local` | Read-only on own profile; placeholder nav for classes/attendance/results/library |
 | Student | `student@sms.local` | Read-only on own profile; placeholder nav for results/attendance/library |
 
-The seed creates one school (`Sunrise Academy`), one class (`Grade 10 - A`),
-one teacher (`Ayesha Siddiqua`), one student (`Rahim Ahmed`) already
-enrolled, one subject (`Mathematics`), and one library book.
+The seed creates one school (`Sunrise Academy`), two programmes
+(`BSC-CS` and `BBA`), one class (`Grade 10 - A`), one teacher
+(`Ayesha Siddiqua`), one student (`Rahim Ahmed`, admission number
+`SMS-2025-0001`) already enrolled, one subject (`Mathematics`), and one
+library book.
 
 ---
 
@@ -89,7 +98,15 @@ in turn unblocks every other CRUD flow. Recommended order:
    - Submit. The new school should appear in the list and become selectable
      in every other CRUD form.
 
-2. **Users → Create user**
+2. **Programmes → Create programme** (Registry workflow)
+   - Click **Programmes** in the sidebar → **New programme**.
+   - Pick a school, fill in the programme name (e.g. `BSc Computer
+     Science`), a short code (e.g. `BSC-CS`), the duration, and an
+     active toggle. Codes are unique per school.
+   - Try to create another programme with the same `(schoolId, code)` —
+     it's rejected pre-write with a friendly inline error.
+
+3. **Users → Create user**
    - **Users** → **New user**.
    - Pick a role, assign to a school (school admin / teacher / student
      must have a school; super admin must not).
@@ -97,26 +114,51 @@ in turn unblocks every other CRUD flow. Recommended order:
      They can log in with it immediately and the app forces a password
      change on first login (or admin can re-issue from the users list).
 
-3. **Students → Create student** — the most complex form because it
+4. **Students → Create student** — the most complex form because it
    touches four tables in one transaction.
-   - Fill in name, email, password, admission number, DOB, gender,
-     guardian info.
+   - Fill in name, email, password, DOB, gender, guardian info.
+   - **Programme is required** — every student belongs to a programme.
+     Pick one from the school-scoped dropdown.
+   - **Academic year** is required; the SMS-YYYY-#### id uses the current
+     year by default.
+   - **Admission number is auto-generated** as `SMS-YYYY-####` per
+     school, per year. You can't pick your own.
    - Optional: pick an existing class from the school to auto-enroll.
    - **Important**: trying to use a class that belongs to a *different*
      school returns a pre-transaction error and writes nothing — verify
      by inspecting that no student row was created.
-   - Trying to reuse an email or an `(schoolId, admissionNo)` pair also
-     rejects before any DB write.
+   - Trying to reuse an email rejects before any DB write.
 
-4. **Students → Enrollments history**
+5. **Students → Enrollments history**
    - Open any student → **Enrollments** tab. Shows the academic year,
-     class, status (active / graduated / transferred / dropped).
+     class, status (`enrolled` / `deferred` / `withdrawn` / `completed`).
+   - The status-change dropdown only offers values from the new enum;
+     switching to anything other than `enrolled` stamps `leftAt` on the
+     row, returning to `enrolled` clears it.
 
-5. **Teachers → Create teacher** — same shape as students but with
+6. **Teachers → Create teacher** — same shape as students but with
    `employeeId`, qualification, specialization, salary.
 
-6. **Toggle active** on any of the above.
-   - Deactivated users cannot log in (the auth check rejects them).
+7. **Fees → Fee structures**
+   - Click **Fees** in the sidebar → **Fee structures → New**.
+   - Name, amount (cents), frequency, optional due day, **programme
+     scope** (primary), optional class scope.
+   - The fee-structures table now shows a **Programme** column.
+
+8. **Fees → Issue invoice**
+   - **Fees → Invoices → New invoice**.
+   - Pick a student. If you don't supply an explicit fee structure, the
+     action auto-derives `amountCents` and `description` from the
+     student's programme's active fee structure.
+
+9. **Fees → Overdue widget**
+   - The home of `/admin/fees` lists the top 10 overdue invoices for
+     the school. Seed an invoice with a past `dueDate` and no payments,
+     then refresh — it shows up with a red badge and a link to the
+     invoice detail page.
+
+10. **Toggle active** on any of the above.
+    - Deactivated users cannot log in (the auth check rejects them).
 
 ### 5.2 School admin (`school.admin@sms.local`)
 
@@ -178,18 +220,31 @@ Tick these off in order; each one assumes the previous passed.
 
 - [ ] `npm install` finishes without errors.
 - [ ] `docker compose up -d db` reaches `healthy` within ~10 s.
-- [ ] `npm run db:push` succeeds (creates ~18 tables in Postgres).
-- [ ] `npm run db:seed` prints the four demo credentials.
+- [ ] `npm run db:push` succeeds (creates ~22 tables in Postgres — the new
+      `Programme` table is part of the migration).
+- [ ] `npm run db:seed` prints the four demo credentials and notes the two
+      programmes (`BSC-CS`, `BBA`) it created.
 - [ ] `npm run dev` serves `/login` on http://localhost:3000.
 - [ ] Logging in as `admin@sms.local` redirects to the super-admin dashboard.
 - [ ] Creating a school works and the row appears in the schools list.
+- [ ] Creating a programme works; trying to reuse the same `(schoolId, code)`
+      is rejected inline.
+- [ ] Creating a student auto-generates an `SMS-YYYY-####` admission number
+      and stamps the new student's `programmeId` and `academicYear`.
 - [ ] Creating a student in a class works; their enrollments tab shows the
-      active enrollment.
+      `enrolled` enrollment.
 - [ ] Trying to enroll a student in a class from another school returns
       a clear error and leaves no orphan rows (verify via Prisma Studio).
+- [ ] The enrollment status dropdown only offers `enrolled / deferred /
+      withdrawn / completed` — no more `active / graduated / transferred
+      / dropped`.
+- [ ] Issuing an invoice with no fee structure auto-derives the amount
+      from the student's programme's active FeeStructure.
+- [ ] The `/admin/fees` home shows the **Overdue** widget (top 10).
 - [ ] School admin cannot see or pick classes from other schools.
 - [ ] Teacher and student dashboards show placeholders without 500 errors.
-- [ ] `npm test` passes — 4/4 `createStudent` integration cases.
+- [ ] `npm test` passes — 5/5 `createStudent` + 3/3 `createProgramme` +
+      3/3 `programmeFees` integration cases.
 
 ---
 

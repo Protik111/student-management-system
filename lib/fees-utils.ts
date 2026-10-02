@@ -3,6 +3,8 @@
  * `lib/actions/fees.ts` (which uses "use server") so it can be imported
  * freely by client components and pages.
  */
+import type { FeeStatus } from "@prisma/client";
+
 export type { FeeStatus, PaymentMethod } from "@prisma/client";
 
 /** Format a cents integer as `1,234.56` (assumes 2 decimal places). */
@@ -35,3 +37,21 @@ export const FEE_STATUS_TONE: Record<
   waived: "neutral",
   cancelled: "neutral",
 };
+
+/**
+ * Derive a derived status for an invoice given its amount, payments, and due
+ * date. Centralised here so the overdue widget on the admin fees page can
+ * call it from a server component without going through a "use server" action.
+ */
+export function deriveStatus(
+  amountCents: number,
+  payments: { amountCents: number }[],
+  dueDate: Date,
+): FeeStatus {
+  const paid = payments.reduce((s, p) => s + p.amountCents, 0);
+  if (paid <= 0) {
+    return dueDate.getTime() < Date.now() ? "overdue" : "pending";
+  }
+  if (paid < amountCents) return "partial";
+  return "paid";
+}

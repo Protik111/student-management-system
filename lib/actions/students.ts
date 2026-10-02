@@ -18,6 +18,7 @@ import {
   type StudentCreateInput,
   type StudentUpdateInput,
 } from "@/lib/actions/schemas";
+import { generateStudentAdmissionNo } from "@/lib/sequences";
 import type { Gender, EnrollmentStatus } from "@/lib/db/types";
 
 /* ─── List ───────────────────────────────────────────────────────────────── */
@@ -37,18 +38,38 @@ export interface StudentListItem {
   guardianPhone: string | null;
   schoolId: string;
   schoolName: string;
+  programmeId: string | null;
+  programmeName: string | null;
+  academicYear: number | null;
   currentClassId: string | null;
   currentClassName: string | null;
+  /** Latest enrollment status (if any), used for the status filter. */
+  enrollmentStatus: EnrollmentStatus | null;
   createdAt: Date;
 }
 
-export async function listStudents(): Promise<StudentListItem[]> {
+export interface StudentListFilters {
+  q?: string;
+  status?: EnrollmentStatus;
+  programmeId?: string;
+  academicYear?: number;
+}
+
+export async function listStudents(
+  filters: StudentListFilters = {},
+): Promise<StudentListItem[]> {
   const actor = await requirePermission("manage_students");
 
-  const where =
-    actor.role === "ADMIN" && actor.schoolId
-      ? { schoolId: actor.schoolId }
-      : {};
+  const where: Record<string, unknown> = {};
+  if (actor.role === "ADMIN" && actor.schoolId) {
+    where.schoolId = actor.schoolId;
+  }
+  if (filters.programmeId) where.programmeId = filters.programmeId;
+  if (filters.academicYear) where.academicYear = filters.academicYear;
+
+  // Free-text search (q) is applied client-side after the fetch so we
+  // don't over-fetch every row of every school just to substring-match
+  // names. The other filters narrow the DB query before pagination.
 
   const rows = await prisma.student.findMany({
     where,
@@ -56,11 +77,12 @@ export async function listStudents(): Promise<StudentListItem[]> {
     include: {
       user: { select: { email: true, fullName: true, phone: true, avatarUrl: true, isActive: true } },
       school: { select: { id: true, name: true } },
+      programme: { select: { id: true, name: true } },
       currentClass: { select: { id: true, name: true, section: true } },
     },
   });
 
-  return rows.map((s) => ({
+  let mapped: StudentListItem[] = rows.map((s) => ({
     id: s.id,
     userId: s.userId,
     admissionNo: s.admissionNo,
@@ -75,26 +97,86 @@ export async function listStudents(): Promise<StudentListItem[]> {
     guardianPhone: s.guardianPhone,
     schoolId: s.schoolId,
     schoolName: s.school.name,
+    programmeId: s.programmeId,
+    programmeName: s.programme?.name ?? null,
+    academicYear: s.academicYear,
     currentClassId: s.currentClassId,
     currentClassName: s.currentClass
       ? `${s.currentClass.name}-${s.currentClass.section}`
       : null,
+    enrollmentStatus: null,
     createdAt: s.createdAt,
   }));
+
+  // Hydrate the latest enrollment status for every student we returned, so
+  // the UI can filter by status without an extra round-trip per row.
+  if (mapped.length > 0) {
+    const latestEnrollments = await prisma.enrollment.findMany({
+      where: { studentId: { in: mapped.map((s) => s.id) } },
+      orderBy: [{ enrolledAt: "desc" }],
+      select: { studentId: true, status: true },
+      distinct: ["studentId"],
+    });
+    const statusByStudent = new Map(
+      latestEnrollments.map((e) => [e.studentId, e.status]),
+    );
+    mapped = mapped.map((s) => ({
+      ...s,
+      enrollmentStatus: statusByStudent.get(s.id) ?? null,
+    }));
+  }
+
+  // Enrolment status is a derived column (we don't store it on Student —
+  // it's the status of the latest Enrollment row). Filter in-memory.
+  if (filters.status) {
+    const studentsWithStatus = await prisma.enrollment.findMany({
+      where: {
+        studentId: { in: mapped.map((s) => s.id) },
+        status: filters.status,
+      },
+      select: { studentId: true },
+      orderBy: [{ enrolledAt: "desc" }],
+    });
+    const idsWithStatus = new Set(studentsWithStatus.map((r) => r.studentId));
+    mapped = mapped.filter((s) => idsWithStatus.has(s.id));
+  }
+
+  if (filters.q) {
+    const q = filters.q.trim().toLowerCase();
+    if (q) {
+      mapped = mapped.filter((s) =>
+        [
+          s.fullName,
+          s.email,
+          s.admissionNo,
+          s.schoolName,
+          s.guardianName,
+          s.currentClassName,
+          s.programmeName,
+        ]
+          .filter((v) => v != null)
+          .some((v) => (v as string).toLowerCase().includes(q)),
+      );
+    }
+  }
+
+  return mapped;
 }
 
-/* ─── Form options (school + class pickers) ──────────────────────────────── */
+/* ─── Form options (school + class + programme pickers) ──────────────────── */
 
 export interface StudentFormOptions {
   schools: { id: string; name: string; isActive: boolean }[];
   /** Classes keyed by schoolId so the client can filter when a school is picked. */
   classesBySchool: Record<string, { id: string; name: string; section: string; academicYear: string }[]>;
+  /** Programmes keyed by schoolId. */
+  programmesBySchool: Record<string, { id: string; name: string; code: string }[]>;
 }
 
 export async function getStudentFormOptions(): Promise<StudentFormOptions> {
   const actor = await requirePermission("manage_students");
 
-  const [schools, classes] = await Promise.all([
+  const [schools, classes, programmes] = await Promise.all([
     actor.role === "ADMIN" && actor.schoolId
       ? prisma.school.findMany({
           where: { id: actor.schoolId },
@@ -119,6 +201,14 @@ export async function getStudentFormOptions(): Promise<StudentFormOptions> {
         academicYear: true,
       },
     }),
+    prisma.programme.findMany({
+      where:
+        actor.role === "ADMIN" && actor.schoolId
+          ? { schoolId: actor.schoolId, isActive: true }
+          : { isActive: true },
+      orderBy: [{ schoolId: "asc" }, { name: "asc" }],
+      select: { id: true, schoolId: true, name: true, code: true },
+    }),
   ]);
 
   const classesBySchool: StudentFormOptions["classesBySchool"] = {};
@@ -130,7 +220,15 @@ export async function getStudentFormOptions(): Promise<StudentFormOptions> {
       academicYear: c.academicYear,
     });
   }
-  return { schools, classesBySchool };
+  const programmesBySchool: StudentFormOptions["programmesBySchool"] = {};
+  for (const p of programmes) {
+    (programmesBySchool[p.schoolId] ??= []).push({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+    });
+  }
+  return { schools, classesBySchool, programmesBySchool };
 }
 
 /* ─── Enrollments (for the history page) ─────────────────────────────────── */
@@ -187,7 +285,7 @@ export async function listStudentEnrollments(
 
 export async function createStudent(
   input: StudentCreateInput,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; admissionNo: string }>> {
   let actor;
   try {
     actor = await requirePermission("manage_students");
@@ -217,6 +315,23 @@ export async function createStudent(
     return fail("School is inactive", { schoolId: ["School is inactive"] });
   }
 
+  // Programme must belong to the same school
+  const programme = await prisma.programme.findUnique({
+    where: { id: data.programmeId },
+    select: { id: true, schoolId: true, isActive: true },
+  });
+  if (!programme) {
+    return fail("Programme not found", { programmeId: ["Invalid programme"] });
+  }
+  if (programme.schoolId !== data.schoolId) {
+    return fail("Programme is not in the selected school", {
+      programmeId: ["Programme is not in the selected school"],
+    });
+  }
+  if (!programme.isActive) {
+    return fail("Programme is inactive", { programmeId: ["Programme is inactive"] });
+  }
+
   // currentClassId must belong to the same school if set
   if (data.currentClassId) {
     const klass = await prisma.class.findUnique({
@@ -231,22 +346,12 @@ export async function createStudent(
     }
   }
 
-  // Email + admissionNo uniqueness
+  // Email uniqueness
   const dupEmail = await prisma.user.findUnique({
     where: { email: data.email },
     select: { id: true },
   });
   if (dupEmail) return fail("A user with that email already exists", { email: ["Email already in use"] });
-
-  const dupAdm = await prisma.student.findUnique({
-    where: { schoolId_admissionNo: { schoolId: data.schoolId, admissionNo: data.admissionNo } },
-    select: { id: true },
-  });
-  if (dupAdm) {
-    return fail("Admission number already used in this school", {
-      admissionNo: ["Already used in this school"],
-    });
-  }
 
   if (!data.password) {
     return fail("Password is required", { password: ["Password is required"] });
@@ -257,6 +362,9 @@ export async function createStudent(
 
   try {
     const created = await prisma.$transaction(async (tx) => {
+      // Auto-generate the student ID inside it.
+      const admissionNo = await generateStudentAdmissionNo(tx, data.schoolId);
+
       const user = await tx.user.create({
         data: {
           id: crypto.randomUUID(),
@@ -282,7 +390,9 @@ export async function createStudent(
           id: crypto.randomUUID(),
           userId: user.id,
           schoolId: data.schoolId,
-          admissionNo: data.admissionNo,
+          admissionNo,
+          programmeId: data.programmeId,
+          academicYear: data.academicYear,
           dateOfBirth: data.dateOfBirth ?? null,
           gender: data.gender ?? null,
           currentClassId: data.currentClassId ?? null,
@@ -297,7 +407,7 @@ export async function createStudent(
             studentId: student.id,
             classId: data.currentClassId,
             academicYear,
-            status: "active",
+            status: "enrolled",
           },
         });
         await writeAuditLog(tx, {
@@ -310,7 +420,7 @@ export async function createStudent(
             studentId: student.id,
             classId: data.currentClassId,
             academicYear,
-            status: "active",
+            status: "enrolled",
           },
         });
       }
@@ -322,7 +432,9 @@ export async function createStudent(
         entityId: student.id,
         payload: {
           email: user.email,
-          admissionNo: student.admissionNo,
+          admissionNo,
+          programmeId: data.programmeId,
+          academicYear: data.academicYear,
           currentClassId: student.currentClassId,
         },
       });
@@ -331,7 +443,7 @@ export async function createStudent(
 
     revalidatePath("/admin/students");
     revalidatePath("/admin/students");
-    return ok({ id: created.id });
+    return ok({ id: created.id, admissionNo: created.admissionNo });
   } catch (err) {
     return messageFromError(err, "Failed to create student");
   }
@@ -380,6 +492,23 @@ export async function updateStudent(
     }
   }
 
+  // Programme-scope check on new programmeId
+  if (rest.programmeId && rest.programmeId !== existing.programmeId) {
+    const prog = await prisma.programme.findUnique({
+      where: { id: rest.programmeId },
+      select: { id: true, schoolId: true, isActive: true },
+    });
+    if (!prog) return fail("Programme not found", { programmeId: ["Invalid programme"] });
+    if (prog.schoolId !== existing.schoolId) {
+      return fail("Programme is not in the student's school", {
+        programmeId: ["Programme is not in the student's school"],
+      });
+    }
+    if (!prog.isActive) {
+      return fail("Programme is inactive", { programmeId: ["Programme is inactive"] });
+    }
+  }
+
   // Email uniqueness
   if (rest.email && rest.email !== existing.user.email) {
     const dup = await prisma.user.findUnique({
@@ -388,19 +517,6 @@ export async function updateStudent(
     });
     if (dup && dup.id !== existing.userId) {
       return fail("A user with that email already exists", { email: ["Email already in use"] });
-    }
-  }
-
-  // admissionNo uniqueness
-  if (rest.admissionNo && rest.admissionNo !== existing.admissionNo) {
-    const dup = await prisma.student.findUnique({
-      where: { schoolId_admissionNo: { schoolId: existing.schoolId, admissionNo: rest.admissionNo } },
-      select: { id: true },
-    });
-    if (dup && dup.id !== id) {
-      return fail("Admission number already used in this school", {
-        admissionNo: ["Already used in this school"],
-      });
     }
   }
 
@@ -425,7 +541,8 @@ export async function updateStudent(
         await tx.user.update({ where: { id: existing.userId }, data: userPatch });
       }
       const studentPatch: Record<string, unknown> = {};
-      if (rest.admissionNo !== undefined) studentPatch.admissionNo = rest.admissionNo;
+      if (rest.programmeId !== undefined) studentPatch.programmeId = rest.programmeId;
+      if (rest.academicYear !== undefined) studentPatch.academicYear = rest.academicYear;
       if (rest.dateOfBirth !== undefined) studentPatch.dateOfBirth = rest.dateOfBirth;
       if (rest.gender !== undefined) studentPatch.gender = rest.gender;
       if (currentClassId !== undefined) studentPatch.currentClassId = currentClassId || null;
@@ -442,7 +559,7 @@ export async function updateStudent(
             studentId: id,
             classId: currentClassId,
             academicYear,
-            status: "active",
+            status: "enrolled",
           },
         });
         await writeAuditLog(tx, {
@@ -455,7 +572,7 @@ export async function updateStudent(
             studentId: id,
             classId: currentClassId,
             academicYear,
-            status: "active",
+            status: "enrolled",
           },
         });
       }

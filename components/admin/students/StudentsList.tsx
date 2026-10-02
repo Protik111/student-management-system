@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Upload } from "lucide-react";
 
+import AppSelect from "@/components/ui/AppSelect";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import PageHeader from "@/components/ui/PageHeader";
@@ -29,6 +30,14 @@ interface StudentsListProps {
   currentUserId: string;
 }
 
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "enrolled", label: "Enrolled" },
+  { value: "deferred", label: "Deferred" },
+  { value: "withdrawn", label: "Withdrawn" },
+  { value: "completed", label: "Completed" },
+];
+
 export default function StudentsList({
   variant,
   initialStudents,
@@ -39,14 +48,33 @@ export default function StudentsList({
   const toast = useToast();
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [programmeFilter, setProgrammeFilter] = useState("all");
   const [editing, setEditing] = useState<StudentListItem | null>(null);
   const [creating, setCreating] = useState(false);
 
   const hrefBase: "/admin" = "/admin";
 
+  // Build the programme picker from the available options. Programmes are
+  // already grouped by school, but at the global student list we just show them
+  // flat — admins can narrow further with the text search if needed.
+  const allProgrammes = useMemo(() => {
+    const list: { id: string; label: string }[] = [];
+    for (const progs of Object.values(options.programmesBySchool)) {
+      for (const p of progs) list.push({ id: p.id, label: `${p.code} — ${p.name}` });
+    }
+    return list;
+  }, [options.programmesBySchool]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return initialStudents.filter((s) => {
+      if (statusFilter !== "all" && s.enrollmentStatus && s.enrollmentStatus !== statusFilter) {
+        return false;
+      }
+      if (programmeFilter !== "all" && s.programmeId !== programmeFilter) {
+        return false;
+      }
       if (!q) return true;
       return [
         s.fullName,
@@ -55,11 +83,12 @@ export default function StudentsList({
         s.schoolName,
         s.guardianName,
         s.currentClassName,
+        s.programmeName,
       ]
         .filter(Boolean)
         .some((v) => v!.toLowerCase().includes(q));
     });
-  }, [initialStudents, search]);
+  }, [initialStudents, search, statusFilter, programmeFilter]);
 
   const toggle = useConfirmAction<StudentListItem>({
     title: (s) => (s.isActive ? "Deactivate student?" : "Activate student?"),
@@ -92,11 +121,6 @@ export default function StudentsList({
         }
         actions={
           <>
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Search by name, admission #, class…"
-            />
             <Button
               variant="outline"
               href={`${hrefBase}/students/import`}
@@ -109,6 +133,31 @@ export default function StudentsList({
           </>
         }
       />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name, admission #, class…"
+          className="flex-1 min-w-[200px]"
+        />
+        <AppSelect
+          options={STATUS_OPTIONS}
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+          placeholder="Filter by status"
+        />
+        <AppSelect
+          options={[
+            { value: "all", label: "All programmes" },
+            ...allProgrammes.map((p) => ({ value: p.id, label: p.label })),
+          ]}
+          value={programmeFilter}
+          onValueChange={setProgrammeFilter}
+          placeholder="Filter by programme"
+          disabled={allProgrammes.length === 0}
+        />
+      </div>
 
       {initialStudents.length === 0 ? (
         <EmptyState
@@ -130,6 +179,7 @@ export default function StudentsList({
             <thead>
               <tr className="border-b border-border text-meta uppercase tracking-[0.06em] text-text-subtle">
                 <th className="px-4 py-3 text-left font-semibold">Student</th>
+                <th className="px-4 py-3 text-left font-semibold">Programme</th>
                 <th className="px-4 py-3 text-left font-semibold">Class</th>
                 {variant === "ADMIN" && (
                   <th className="px-4 py-3 text-left font-semibold">School</th>
@@ -143,10 +193,10 @@ export default function StudentsList({
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={variant === "ADMIN" ? 6 : 5}
+                    colSpan={variant === "ADMIN" ? 7 : 6}
                     className="py-8 text-center text-default text-text-muted"
                   >
-                    No students match your search.
+                    No students match your filters.
                   </td>
                 </tr>
               ) : (
@@ -166,6 +216,15 @@ export default function StudentsList({
                           enrollmentsHref={s.id}
                           hrefBase={hrefBase}
                         />
+                      </td>
+                      <td className="px-4 py-3.5 text-text-muted">
+                        {s.programmeName ? (
+                          <span className="font-medium text-text">
+                            {s.programmeName}
+                          </span>
+                        ) : (
+                          <span className="text-meta text-text-subtle">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-text-muted">
                         {s.currentClassName ? (
@@ -255,6 +314,8 @@ export default function StudentsList({
             dateOfBirth: editing.dateOfBirth,
             gender: editing.gender,
             currentClassId: editing.currentClassId,
+            programmeId: editing.programmeId,
+            academicYear: editing.academicYear,
             guardianName: editing.guardianName,
             guardianPhone: editing.guardianPhone,
             address: null,

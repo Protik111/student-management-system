@@ -16,12 +16,14 @@ import { createFeeStructure } from "@/lib/actions/fees";
 
 interface FeeStructureFormProps {
   classOptions: { id: string; label: string }[];
+  programmeOptions: { id: string; label: string }[];
   onClose: () => void;
   onSaved: () => void;
 }
 
 export default function FeeStructureForm({
   classOptions,
+  programmeOptions,
   onClose,
   onSaved,
 }: FeeStructureFormProps) {
@@ -36,6 +38,7 @@ export default function FeeStructureForm({
     defaultValues: {
       name: "",
       classId: "",
+      programmeId: "",
       amountCents: undefined as unknown as number,
       frequency: "termly",
       dueDay: undefined as unknown as number,
@@ -46,6 +49,7 @@ export default function FeeStructureForm({
   async function onSubmit(values: FeeStructureCreateInput) {
     const cleaned: FeeStructureCreateInput = {
       ...values,
+      programmeId: values.programmeId || undefined,
       classId: values.classId || undefined,
       dueDay: values.dueDay || undefined,
     };
@@ -104,6 +108,25 @@ export default function FeeStructureForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <Controller
+            control={control}
+            name="programmeId"
+            render={({ field }) => (
+              <AppSelect
+                label="Programme"
+                options={[
+                  { value: "", label: programmeOptions.length ? "Pick one…" : "No programmes yet" },
+                  ...programmeOptions.map((p) => ({ value: p.id, label: p.label })),
+                ]}
+                value={field.value ?? ""}
+                onValueChange={(v) => field.onChange(v)}
+                placeholder="Pick a programme"
+                hint="Fees attach to a programme; invoicing auto-derives from this."
+                disabled={programmeOptions.length === 0}
+                error={errors.programmeId?.message}
+              />
+            )}
+          />
           <Input
             label="Due day (1–28)"
             type="number"
@@ -114,24 +137,25 @@ export default function FeeStructureForm({
             error={errors.dueDay?.message}
             {...register("dueDay", { valueAsNumber: true })}
           />
-          <Controller
-            control={control}
-            name="classId"
-            render={({ field }) => (
-              <AppSelect
-                label="Class scope"
-                options={[
-                  { value: "", label: "All classes" },
-                  ...classOptions.map((o) => ({ value: o.id, label: o.label })),
-                ]}
-                value={field.value ?? ""}
-                onValueChange={(v) => field.onChange(v)}
-                placeholder="All classes"
-                hint="Optional — restrict to one class."
-              />
-            )}
-          />
         </div>
+
+        <Controller
+          control={control}
+          name="classId"
+          render={({ field }) => (
+            <AppSelect
+              label="Class scope (optional)"
+              options={[
+                { value: "", label: "All classes" },
+                ...classOptions.map((o) => ({ value: o.id, label: o.label })),
+              ]}
+              value={field.value ?? ""}
+              onValueChange={(v) => field.onChange(v)}
+              placeholder="All classes"
+              hint="Optional — restrict to one class. Programmes are the primary scope."
+            />
+          )}
+        />
 
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>

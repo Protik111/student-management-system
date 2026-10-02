@@ -185,8 +185,16 @@ export const studentCreateSchema = z
     primaryRole: z.literal("STUDENT").optional(),
     roles: z.array(z.enum(ROLES)).optional(),
 
-    // Student profile
-    admissionNo: trimmedString(40).min(1, "Admission number is required"),
+    // Student profile.
+    // `admissionNo` is intentionally absent: the server auto-generates an
+    // `SMS-YYYY-####` ID inside the transaction. The form shows the value
+    // returned in the success result so the admin can capture it.
+    programmeId: z.string().min(1, "Programme is required"),
+    academicYear: z.coerce
+      .number()
+      .int("Academic year must be a whole number")
+      .min(2000, "Must be 2000 or later")
+      .max(2100, "Must be 2100 or earlier"),
     dateOfBirth: isoDateString,
     gender: z.enum(GENDERS).optional(),
     currentClassId: z
@@ -237,7 +245,15 @@ export const studentUpdateSchema = z
       .nullable()
       .or(z.literal("").transform(() => undefined)),
     avatarUrl: optionalUrl,
-    admissionNo: trimmedString(40).optional(),
+    // `admissionNo` is intentionally NOT updatable. Student IDs are
+    // system-generated and immutable for audit-traceability.
+    programmeId: z.string().min(1).optional(),
+    academicYear: z.coerce
+      .number()
+      .int()
+      .min(2000)
+      .max(2100)
+      .optional(),
     dateOfBirth: isoDateString,
     gender: z.enum(GENDERS).optional(),
     currentClassId: z
@@ -355,15 +371,17 @@ export const enrollmentCreateSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{4}-\d{4}$/, "Use YYYY-YYYY"),
-  status: z.enum(["active", "graduated", "transferred", "dropped"]).default("active"),
+  status: z
+    .enum(["enrolled", "deferred", "withdrawn", "completed"])
+    .default("enrolled"),
 });
 
 export type EnrollmentCreateInput = z.infer<typeof enrollmentCreateSchema>;
 
 export const enrollmentUpdateStatusSchema = z.object({
   id: z.string().min(1),
-  status: z.enum(["active", "graduated", "transferred", "dropped"]),
-  /** Optional override; defaults to "now" when transitioning away from active. */
+  status: z.enum(["enrolled", "deferred", "withdrawn", "completed"]),
+  /** Optional override; defaults to "now" when transitioning away from enrolled. */
   leftAt: z.date().optional(),
 });
 
@@ -372,7 +390,20 @@ export type EnrollmentUpdateStatusInput = z.infer<typeof enrollmentUpdateStatusS
 export const csvImportRowSchema = z.object({
   email: z.string().trim().toLowerCase().email("Invalid email").max(254),
   fullName: trimmedString(120).min(2, "Full name is required"),
-  admissionNo: trimmedString(40).min(1, "Admission number is required"),
+  // No `admissionNo` here — the server auto-generates `SMS-YYYY-####` per row.
+  programmeCode: z
+    .string()
+    .trim()
+    .max(40)
+    .regex(/^[A-Za-z0-9_-]+$/, "Letters, numbers, dashes only")
+    .optional()
+    .or(z.literal("")),
+  academicYear: z.coerce
+    .number()
+    .int()
+    .min(2000)
+    .max(2100)
+    .optional(),
   gender: z.enum(GENDERS).optional(),
   dateOfBirth: z
     .string()
@@ -400,9 +431,65 @@ export type CsvImportRequest = z.infer<typeof csvImportRequestSchema>;
 
 /* ─── Fees schemas ───────────────────────────────────────────────────────── */
 
+// Update schema is built off the *base* schema (before the .transform()).
+// Calling .partial() on a ZodEffects (the type returned after .transform())
+// isn't supported; we share the base shape with `programmeCreateSchema`.
+const programmeBaseSchema = z.object({
+  // School is optional in the input because the action falls back to the
+  // actor's schoolId for non-super-admins. We still validate the bound
+  // school inside the action.
+  schoolId: z
+    .string()
+    .min(1)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  name: trimmedString(120).min(2, "Programme name is required"),
+  code: z
+    .string()
+    .trim()
+    .min(1, "Code is required")
+    .max(40)
+    .regex(/^[A-Za-z0-9_-]+$/, "Letters, numbers, dashes only"),
+  durationYears: z.coerce
+    .number()
+    .int("Duration must be a whole number of years")
+    .min(1, "Duration must be at least 1 year")
+    .max(10, "Duration is unreasonably long")
+    .default(4),
+  isActive: z.boolean().default(true),
+});
+
+export const programmeCreateSchema = programmeBaseSchema.transform((v) => ({
+  ...v,
+  durationYears: v.durationYears ?? 4,
+}));
+
+export type ProgrammeCreateInput = z.input<typeof programmeCreateSchema>;
+export type ProgrammeCreateParsed = z.infer<typeof programmeCreateSchema>;
+
+export const programmeUpdateSchema = programmeBaseSchema
+  .partial()
+  .extend({ id: z.string().min(1) });
+
+export type ProgrammeUpdateInput = z.input<typeof programmeUpdateSchema>;
+
 export const feeStructureCreateSchema = z.object({
   name: trimmedString(120).min(2, "Name is required"),
-  classId: z.string().min(1).optional().nullable().or(z.literal("").transform(() => undefined)),
+  // Programme is the primary link going forward. `classId` is kept as an
+  // optional scope (e.g. "Grade 10 cohort of BSc CS") but at least one of
+  // programmeId / classId must be supplied.
+  programmeId: z
+    .string()
+    .min(1)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => undefined)),
+  classId: z
+    .string()
+    .min(1)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => undefined)),
   amountCents: z
     .number()
     .int("Amount must be a whole number (in cents)")
@@ -421,28 +508,44 @@ export type FeeStructureCreateParsed = z.infer<typeof feeStructureCreateSchema>;
 export const invoiceCreateSchema = z.object({
   studentId: z.string().min(1, "Student is required"),
   feeStructureId: z.string().min(1).optional().nullable().or(z.literal("")),
-  description: trimmedString(200).min(1, "Description is required"),
+  // Optional override for the amount — when omitted, the server derives the
+  // amount from the student's programme's active FeeStructure.
   amountCents: z
     .number()
     .int("Amount must be a whole number (in cents)")
-    .min(0, "Amount cannot be negative"),
+    .min(0, "Amount cannot be negative")
+    .optional(),
   dueDate: isoDateString,
+  description: trimmedString(200).optional(),
   notes: trimmedString(500).optional(),
 });
 
 export type InvoiceCreateInput = z.input<typeof invoiceCreateSchema>;
 
-export const paymentCreateSchema = z.object({
-  invoiceId: z.string().min(1),
-  amountCents: z
-    .number()
-    .int("Amount must be a whole number (in cents)")
-    .min(1, "Payment amount must be > 0"),
-  method: z.enum(["cash", "bank", "card", "mobile", "cheque", "other"]),
-  reference: trimmedString(120).optional().or(z.literal("")),
-  paidAt: isoDateString,
-  notes: trimmedString(500).optional(),
-});
+export const paymentCreateSchema = z
+  .object({
+    invoiceId: z.string().min(1),
+    amountCents: z
+      .number()
+      .int("Amount must be a whole number (in cents)")
+      .min(1, "Payment amount must be > 0"),
+    method: z.enum(["cash", "bank", "card", "mobile", "cheque", "other"]),
+    reference: z.string().trim().max(120).optional().or(z.literal("")),
+    paidAt: isoDateString,
+    notes: trimmedString(500).optional(),
+  })
+  .refine(
+    (v) => {
+      // Reference is required for every method EXCEPT cash (cash receipts
+      // rarely have bank-style reference numbers).
+      if (v.method === "cash") return true;
+      return typeof v.reference === "string" && v.reference.trim().length > 0;
+    },
+    {
+      message: "Reference is required for non-cash payments",
+      path: ["reference"],
+    },
+  );
 
 export type PaymentCreateInput = z.input<typeof paymentCreateSchema>;
 

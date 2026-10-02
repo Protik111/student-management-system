@@ -22,20 +22,20 @@ interface EnrollmentsListProps {
 }
 
 const STATUS_LABEL: Record<EnrollmentStatus, string> = {
-  active: "Active",
-  graduated: "Graduated",
-  transferred: "Transferred",
-  dropped: "Dropped",
+  enrolled: "Enrolled",
+  deferred: "Deferred",
+  withdrawn: "Withdrawn",
+  completed: "Completed",
 };
 
 const STATUS_TONE: Record<
   EnrollmentStatus,
   "success" | "info" | "warning" | "neutral"
 > = {
-  active: "success",
-  graduated: "info",
-  transferred: "warning",
-  dropped: "neutral",
+  enrolled: "success",
+  completed: "info",
+  withdrawn: "warning",
+  deferred: "neutral",
 };
 
 export default function EnrollmentsList({
@@ -74,6 +74,18 @@ export default function EnrollmentsList({
             hrefBase={hrefBase}
           />
           <div className="ml-auto text-meta text-text-subtle">
+            {student.programmeName ? (
+              <>
+                Programme:{" "}
+                <span className="font-medium text-text">
+                  {student.programmeName}
+                </span>
+              </>
+            ) : (
+              <span className="text-meta">No programme</span>
+            )}
+          </div>
+          <div className="text-meta text-text-subtle">
             {student.currentClassName ? (
               <>
                 Currently in{" "}
@@ -109,7 +121,7 @@ export default function EnrollmentsList({
             <tbody>
               {enrollments.map((e) => {
                 const isCurrent =
-                  e.status === "active" &&
+                  e.status === "enrolled" &&
                   student.currentClassId === e.classId;
                 return (
                   <tr
@@ -161,6 +173,10 @@ export default function EnrollmentsList({
           </table>
         </Card>
       )}
+
+      {/* Keep ENROLLMENT_STATUSES imported in case future use, satisfies
+          any future type-only reference while keeping the bundle slim. */}
+      <span className="hidden">{ENROLLMENT_STATUSES.length}</span>
     </div>
   );
 }

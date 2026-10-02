@@ -12,6 +12,7 @@ export const PERMISSIONS = {
   // === Schools / Users ===
   manage_schools: ["ADMIN"],
   manage_users: ["ADMIN"],
+  manage_programmes: ["ADMIN"],
   manage_students: ["ADMIN"],
   manage_teachers: ["ADMIN"],
   manage_classes: ["ADMIN"],
@@ -94,6 +95,7 @@ export function dashboardPathFor(role: Role): string {
 export const ROLE_NAV: Record<Role, { href: string; label: string }[]> = {
   ADMIN: [
     { href: "/admin", label: "Overview" },
+    { href: "/admin/programmes", label: "Programmes" },
     { href: "/admin/courses", label: "Courses" },
     { href: "/admin/categories", label: "Categories" },
     { href: "/admin/enrollments", label: "Enrollments" },

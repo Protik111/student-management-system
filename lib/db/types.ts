@@ -39,10 +39,10 @@ export const ROLES = [
 export const GENDERS = ["male", "female", "other"] as const satisfies readonly Gender[];
 
 export const ENROLLMENT_STATUSES = [
-  "active",
-  "graduated",
-  "transferred",
-  "dropped",
+  "enrolled",
+  "deferred",
+  "withdrawn",
+  "completed",
 ] as const satisfies readonly EnrollmentStatus[];
 
 export const EXAM_TERMS = [

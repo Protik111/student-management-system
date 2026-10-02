@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/_helpers";
 import { notify } from "@/lib/notifications";
 import { csvImportRequestSchema, type CsvImportRequest } from "@/lib/actions/schemas";
+import { generateStudentAdmissionNo } from "@/lib/sequences";
 
 /* ─── Bulk CSV import ────────────────────────────────────────────────────── */
 
@@ -25,6 +26,7 @@ export interface ImportSummary {
 }
 
 const ACADEMIC_YEAR = getCurrentAcademicYear();
+const ACADEMIC_YEAR_NUM = new Date().getUTCFullYear();
 
 /**
  * Bulk-import students from a parsed+validated CSV.
@@ -85,15 +87,29 @@ export async function importStudentsCsv(
   });
   const existingEmails = new Set(existingUsers.map((u) => u.email));
 
-  // Pre-check: existing admissionNos
-  const admissionNos = validRows
-    .map((r) => r.admissionNo)
-    .filter(Boolean) as string[];
-  const existingStudents = await prisma.student.findMany({
-    where: { admissionNo: { in: admissionNos }, schoolId: { in: schoolIds } },
-    select: { admissionNo: true },
-  });
-  const existingAdmissionNos = new Set(existingStudents.map((s) => s.admissionNo));
+  // Pre-check: existing admissionNos. Auto-generated: rows don't supply an
+  // admissionNo, so this is always an empty set; the migration renumbered
+  // everything to SMS-YYYY-####, and new rows are stamped inside the tx.
+  const existingAdmissionNos = new Set<string>();
+
+  // Resolve programmes by code (per target school)
+  const programmeCodes = Array.from(
+    new Set(
+      validRows
+        .map((r) => r.programmeCode)
+        .filter((c): c is string => Boolean(c)),
+    ),
+  );
+  const programmes = programmeCodes.length
+    ? await prisma.programme.findMany({
+        where: { schoolId: { in: schoolIds }, code: { in: programmeCodes } },
+        select: { id: true, code: true, schoolId: true },
+      })
+    : [];
+  const programmeByKey = new Map<string, { id: string; schoolId: string }>();
+  for (const p of programmes) {
+    programmeByKey.set(`${p.schoolId}|${p.code.toLowerCase()}`, p);
+  }
 
   // Resolve classes by (name, section)
   const classKeys = new Set<string>();
@@ -171,17 +187,20 @@ export async function importStudentsCsv(
           }
           throw new Error("Email already exists");
         }
-        if (existingAdmissionNos.has(r.admissionNo)) {
-          if (skipExisting) {
-            summary.skipped++;
-            summary.errors.push({
-              row: rowNo,
-              email: r.email,
-              reason: "Admission number already used — skipped",
-            });
-            continue;
+        // Admission numbers are auto-generated server-side; nothing to pre-check
+        // for collisions. New rows get a fresh SMS-YYYY-#### inside the tx.
+
+        // Resolve programme by code (per target school)
+        let programmeId: string | null = null;
+        if (r.programmeCode) {
+          const k = `${targetSchoolId}|${r.programmeCode.toLowerCase()}`;
+          const prog = programmeByKey.get(k);
+          if (!prog) {
+            throw new Error(
+              `Programme "${r.programmeCode}" not found in the target school`,
+            );
           }
-          throw new Error("Admission number already used");
+          programmeId = prog.id;
         }
 
         // Resolve class
@@ -204,6 +223,9 @@ export async function importStudentsCsv(
 
         const dob = r.dateOfBirth && r.dateOfBirth !== "" ? new Date(r.dateOfBirth + "T00:00:00.000Z") : null;
 
+        // Auto-generate a per-school, per-year SMS-YYYY-#### id.
+        const admissionNo = await generateStudentAdmissionNo(tx, targetSchoolId);
+
         const user = await tx.user.create({
           data: {
             id: crypto.randomUUID(),
@@ -223,10 +245,12 @@ export async function importStudentsCsv(
             id: crypto.randomUUID(),
             userId: user.id,
             schoolId: targetSchoolId,
-            admissionNo: r.admissionNo,
+            admissionNo,
             dateOfBirth: dob,
             gender: r.gender,
             currentClassId: classId,
+            programmeId,
+            academicYear: r.academicYear ?? ACADEMIC_YEAR_NUM,
             guardianName: r.guardianName || null,
             guardianPhone: r.guardianPhone || null,
             address: r.address || null,
@@ -239,7 +263,7 @@ export async function importStudentsCsv(
               studentId: student.id,
               classId,
               academicYear: ACADEMIC_YEAR,
-              status: "active",
+              status: "enrolled",
             },
           });
         }
@@ -258,7 +282,7 @@ export async function importStudentsCsv(
           action: "students.create",
           entityType: "Student",
           entityId: student.id,
-          payload: { email: r.email, admissionNo: r.admissionNo, via: "csv_import" },
+          payload: { email: r.email, admissionNo, programmeId, via: "csv_import" },
         });
 
         summary.inserted++;

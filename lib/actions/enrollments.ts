@@ -127,8 +127,8 @@ export async function updateEnrollmentStatus(
   try {
     const updated = await prisma.$transaction(async (tx) => {
       const data: { status: EnrollmentStatus; leftAt?: Date | null } = { status };
-      // Setting status to "active" clears leftAt. Anything else stamps leftAt.
-      if (status === "active") {
+      // Setting status to "enrolled" clears leftAt. Anything else stamps leftAt.
+      if (status === "enrolled") {
         data.leftAt = null;
       } else if (leftAt) {
         data.leftAt = leftAt;

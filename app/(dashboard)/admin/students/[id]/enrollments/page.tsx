@@ -19,6 +19,8 @@ async function loadStudent(id: string): Promise<StudentListItem | null> {
       user: { select: { email: true, fullName: true, phone: true, avatarUrl: true, isActive: true } },
       school: { select: { id: true, name: true } },
       currentClass: { select: { id: true, name: true, section: true } },
+      programme: { select: { id: true, name: true } },
+      _count: { select: { enrollments: true } },
     },
   });
   if (!row) return null;
@@ -37,10 +39,14 @@ async function loadStudent(id: string): Promise<StudentListItem | null> {
     guardianPhone: row.guardianPhone,
     schoolId: row.schoolId,
     schoolName: row.school.name,
+    programmeId: row.programmeId,
+    programmeName: row.programme?.name ?? null,
+    academicYear: row.academicYear,
     currentClassId: row.currentClassId,
     currentClassName: row.currentClass
       ? `${row.currentClass.name}-${row.currentClass.section}`
       : null,
+    enrollmentStatus: null,
     createdAt: row.createdAt,
   };
 }

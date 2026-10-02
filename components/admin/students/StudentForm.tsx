@@ -34,6 +34,8 @@ interface StudentFormProps {
     dateOfBirth: Date | null;
     gender: Gender | null;
     currentClassId: string | null;
+    programmeId: string | null;
+    academicYear: number | null;
     guardianName: string | null;
     guardianPhone: string | null;
     address: string | null;
@@ -58,6 +60,10 @@ function dateToIso(d: Date | null | undefined): string {
  * `dateOfBirth` is held as an ISO YYYY-MM-DD string (matches what the user
  * picks in the DatePicker) and converted to a Date by the server schema's
  * `.transform()`. We type it via `z.input<>` so the form fields are correct.
+ *
+ * Note: `admissionNo` is intentionally NOT in this form — it is auto-generated
+ * on the server (per-school, per-year `SMS-YYYY-####`) so the admin can't pick
+ * a duplicate by accident.
  */
 type FormValues = StudentCreateFormInput;
 
@@ -75,6 +81,8 @@ export default function StudentForm({
       ? options.schools[0]?.id ?? ""
       : initial?.schoolId ?? "";
 
+  const currentYear = new Date().getFullYear();
+
   const {
     register,
     handleSubmit,
@@ -84,8 +92,6 @@ export default function StudentForm({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    // The schema transforms dateOfBirth string → Date, but the form uses a
-    // string. Cast the resolver to satisfy RHF's generic.
     resolver: zodResolver(studentCreateSchema) as never,
     defaultValues: {
       email: initial?.email ?? "",
@@ -94,7 +100,8 @@ export default function StudentForm({
       avatarUrl: initial?.avatarUrl ?? "",
       password: "",
       schoolId: defaultSchoolId,
-      admissionNo: initial?.admissionNo ?? "",
+      programmeId: initial?.programmeId ?? "",
+      academicYear: initial?.academicYear ?? currentYear,
       dateOfBirth: dateToIso(initial?.dateOfBirth),
       gender: initial?.gender ?? undefined,
       currentClassId: initial?.currentClassId ?? "",
@@ -106,6 +113,7 @@ export default function StudentForm({
   });
 
   const schoolId = watch("schoolId");
+  const programmeId = watch("programmeId");
   const currentClassId = watch("currentClassId");
   const enrollInCurrentClass = watch("enrollInCurrentClass");
 
@@ -120,6 +128,17 @@ export default function StudentForm({
     ];
   }, [options.classesBySchool, schoolId]);
 
+  const programmeOptions = useMemo(() => {
+    const progs = schoolId ? (options.programmesBySchool[schoolId] ?? []) : [];
+    return [
+      { value: "__none__", label: "(no programme)" },
+      ...progs.map((p) => ({
+        value: p.id,
+        label: `${p.code} — ${p.name}`,
+      })),
+    ];
+  }, [options.programmesBySchool, schoolId]);
+
   const schoolOptions = options.schools.map((s) => ({
     value: s.id,
     label: s.name + (s.isActive ? "" : " (inactive)"),
@@ -131,9 +150,6 @@ export default function StudentForm({
   }));
 
   async function onSubmit(values: FormValues) {
-    // Client-side required checks that the Zod schema doesn't enforce.
-    // (gender / schoolId are user-input; password length is checked here
-    // because the server action also requires it on create.)
     if (!initial && !values.gender) {
       setError("gender", {
         type: "manual",
@@ -156,6 +172,17 @@ export default function StudentForm({
       });
       return;
     }
+    if (!initial && !programmeId) {
+      setError("programmeId", {
+        type: "manual",
+        message: "Programme is required",
+      });
+      toast.error({
+        title: "Please fix the highlighted fields",
+        description: "Programme is required — every student belongs to a programme.",
+      });
+      return;
+    }
     if (!initial && (!values.password || values.password.length < 8)) {
       setError("password", {
         type: "manual",
@@ -175,16 +202,16 @@ export default function StudentForm({
         fullName: values.fullName,
         phone: values.phone || undefined,
         avatarUrl: values.avatarUrl || undefined,
-        admissionNo: values.admissionNo,
         dateOfBirth: values.dateOfBirth || undefined,
         gender: values.gender,
+        programmeId: programmeId || undefined,
+        academicYear: values.academicYear,
         currentClassId: values.currentClassId || undefined,
         guardianName: values.guardianName || undefined,
         guardianPhone: values.guardianPhone || undefined,
         address: values.address || undefined,
         enrollInCurrentClass: values.enrollInCurrentClass,
         isActive: initial.isActive,
-        // See createStudent above
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       if (!result.ok) {
@@ -208,7 +235,8 @@ export default function StudentForm({
       schoolId: values.schoolId,
       primaryRole: "STUDENT",
       roles: ["STUDENT"],
-      admissionNo: values.admissionNo,
+      programmeId: programmeId as string,
+      academicYear: values.academicYear,
       dateOfBirth: values.dateOfBirth || undefined,
       gender: values.gender,
       currentClassId: values.currentClassId || undefined,
@@ -216,8 +244,6 @@ export default function StudentForm({
       guardianPhone: values.guardianPhone || undefined,
       address: values.address || undefined,
       enrollInCurrentClass: values.enrollInCurrentClass,
-      // The server schema transforms dateOfBirth string → Date, but
-      // TypeScript can't statically express that across the network boundary.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
@@ -228,7 +254,12 @@ export default function StudentForm({
       });
       return;
     }
-    toast.success({ title: "Student created" });
+    toast.success({
+      title: "Student created",
+      description: result.data.admissionNo
+        ? `Admission number: ${result.data.admissionNo}`
+        : undefined,
+    });
     onSaved();
   }
 
@@ -289,13 +320,23 @@ export default function StudentForm({
 
         <Section title="Profile">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="Admission number"
-              placeholder="e.g. ADM-2026-014"
-              required
-              error={errors.admissionNo?.message}
-              {...register("admissionNo")}
-            />
+            {initial ? (
+              <Input
+                label="Admission number"
+                value={initial.admissionNo}
+                readOnly
+                disabled
+                hint="Auto-generated; cannot be changed."
+              />
+            ) : (
+              <Input
+                label="Admission number"
+                value="(generated on save · SMS-YYYY-####)"
+                readOnly
+                disabled
+                hint="The school-scoped, year-scoped ID is generated server-side."
+              />
+            )}
             <Controller
               control={control}
               name="gender"
@@ -332,7 +373,7 @@ export default function StudentForm({
           />
         </Section>
 
-        <Section title="School & class">
+        <Section title="Programme & class">
           {variant === "ADMIN" ? (
             <Controller
               control={control}
@@ -351,6 +392,7 @@ export default function StudentForm({
                   onValueChange={(v) => {
                     field.onChange(v);
                     setValue("currentClassId", "", { shouldDirty: true });
+                    setValue("programmeId", "", { shouldDirty: true });
                   }}
                   error={errors.schoolId?.message}
                 />
@@ -365,6 +407,47 @@ export default function StudentForm({
               hint="Your account is locked to this school."
             />
           )}
+
+          <Controller
+            control={control}
+            name="programmeId"
+            render={({ field }) => (
+              <AppSelect
+                label="Programme"
+                required={!initial}
+                hint="Every student belongs to a programme (degree/track). Fees are attached at this scope."
+                placeholder={
+                  !schoolId
+                    ? "Pick a school first…"
+                    : programmeOptions.length <= 1
+                    ? "No programmes in this school yet — create one in /admin/programmes"
+                    : "Select programme…"
+                }
+                options={programmeOptions}
+                value={
+                  !field.value || field.value === ""
+                    ? "__none__"
+                    : field.value
+                }
+                onValueChange={(v) =>
+                  field.onChange(v === "__none__" ? "" : v)
+                }
+                disabled={!schoolId || programmeOptions.length <= 1}
+                error={errors.programmeId?.message}
+              />
+            )}
+          />
+
+          <Input
+            label="Academic year"
+            type="number"
+            min={2000}
+            max={2100}
+            required
+            hint="Used to scope the SMS-... ID and reports."
+            {...register("academicYear", { valueAsNumber: true })}
+            error={errors.academicYear?.message}
+          />
 
           <Controller
             control={control}
@@ -411,7 +494,7 @@ export default function StudentForm({
             <span>
               Also write an enrollment row for the current academic year
               <span className="ml-1 text-meta text-text-subtle">
-                (writes a fresh active enrollment record)
+                (writes a fresh enrolled enrollment record)
               </span>
             </span>
           </label>

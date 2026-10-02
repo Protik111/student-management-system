@@ -6,13 +6,14 @@
  * validation, the audit-log writes — runs against a fresh isolated
  * Postgres schema pushed + truncated + reseeded by `tests/setup.ts`.
  *
- * The four cases cover:
+ * The cases cover the Programme-based Registry model:
  *   1. Happy path — atomic create of User + UserRole + Student + Enrollment
- *      and one audit row per logical action.
+ *      and one audit row per logical action. Admission number is auto-
+ *      generated as SMS-YYYY-####. Status is "enrolled" (not "active").
  *   2. Email uniqueness — pre-check rejects a duplicate before any DB write.
- *   3. admissionNo uniqueness — same idea, scoped per school.
- *   4. Cross-school class — currentClassId in a different school → rejected
+ *   3. Cross-school class — currentClassId in a different school → rejected
  *      pre-transaction; no rows leak.
+ *   4. Missing programme — programmeId is required; rejected pre-write.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -59,12 +60,14 @@ type FormInput = StudentCreateFormInput;
 
 let schoolId: string;
 let otherSchoolId: string;
+let programmeId: string;
 
 beforeEach(async () => {
   await resetTestDb();
   const fixtures = await seedFixtures();
   schoolId = fixtures.school.id;
   otherSchoolId = fixtures.otherSchool.id;
+  programmeId = fixtures.programme.id;
 });
 
 afterAll(async () => {
@@ -79,7 +82,8 @@ function makeInput(): FormInput {
     schoolId, // ignored by the action once it forces the actor's schoolId
     primaryRole: "STUDENT",
     roles: ["STUDENT"],
-    admissionNo: `ADM-${Date.now()}`,
+    programmeId,
+    academicYear: 2025,
     enrollInCurrentClass: true,
     currentClassId: "class_test_1",
     dateOfBirth: "2010-05-15",
@@ -102,6 +106,7 @@ describe("createStudent", () => {
     if (!result.ok) return;
 
     const studentId = result.data.id;
+    const admissionNo = result.data.admissionNo;
 
     const [user, student, enrollments, userRole, audits] = await Promise.all([
       prisma.student
@@ -118,7 +123,11 @@ describe("createStudent", () => {
     expect(user?.schoolId).toBe(schoolId);
     expect(user?.isActive).toBe(true);
 
-    expect(student?.admissionNo).toMatch(/^ADM-/);
+    // Admission number is auto-generated: SMS-{year}-{####}.
+    expect(admissionNo).toMatch(/^SMS-\d{4}-\d{4}$/);
+    expect(student?.admissionNo).toBe(admissionNo);
+    expect(student?.programmeId).toBe(programmeId);
+    expect(student?.academicYear).toBe(2025);
     expect(student?.currentClassId).toBe("class_test_1");
     expect(student?.schoolId).toBe(schoolId);
 
@@ -126,11 +135,24 @@ describe("createStudent", () => {
 
     expect(enrollments).toHaveLength(1);
     expect(enrollments[0]?.classId).toBe("class_test_1");
-    expect(enrollments[0]?.status).toBe("active");
+    expect(enrollments[0]?.status).toBe("enrolled");
     expect(enrollments[0]?.academicYear).toBe("2025-2026");
 
     const actions = audits.map((a) => a.action).sort();
     expect(actions).toEqual(["enrollments.create", "students.create"]);
+  });
+
+  it("generates sequential, non-colliding admission numbers across multiple creates", async () => {
+    const a = await callCreateStudent(makeInput());
+    const b = await callCreateStudent(makeInput());
+    const c = await callCreateStudent(makeInput());
+    expect(a.ok && b.ok && c.ok).toBe(true);
+    if (!a.ok || !b.ok || !c.ok) return;
+    const ids = [a.data.admissionNo, b.data.admissionNo, c.data.admissionNo];
+    expect(new Set(ids).size).toBe(3); // no duplicates
+    for (const id of ids) {
+      expect(id).toMatch(/^SMS-\d{4}-\d{4}$/);
+    }
   });
 
   it("rejects a duplicate email before any DB write", async () => {
@@ -138,18 +160,15 @@ describe("createStudent", () => {
     const first = await callCreateStudent(inputA);
     expect(first.ok).toBe(true);
 
-    // Snapshot counts after the first successful create
     const beforeCounts = {
       user: await prisma.user.count(),
       student: await prisma.student.count(),
       enrollment: await prisma.enrollment.count(),
     };
 
-    // Now try to create another student with the SAME email
     const second = await callCreateStudent({
       ...makeInput(),
       email: inputA.email,
-      admissionNo: "ADM-DIFFERENT",
     });
 
     expect(second.ok).toBe(false);
@@ -162,20 +181,6 @@ describe("createStudent", () => {
       enrollment: await prisma.enrollment.count(),
     };
     expect(afterCounts).toEqual(beforeCounts); // no leak
-  });
-
-  it("rejects a duplicate admissionNo within the same school", async () => {
-    const inputA = { ...makeInput(), admissionNo: "ADM-DUP-001" };
-    const first = await callCreateStudent(inputA);
-    expect(first.ok).toBe(true);
-
-    const second = await callCreateStudent({
-      ...makeInput(),
-      admissionNo: "ADM-DUP-001", // same school
-    });
-    expect(second.ok).toBe(false);
-    if (second.ok) return;
-    expect(second.error).toMatch(/admission number already used/i);
   });
 
   it("rejects a currentClassId belonging to a different school", async () => {
@@ -201,11 +206,19 @@ describe("createStudent", () => {
       enrollment: await prisma.enrollment.count(),
     };
     expect(afterCounts).toEqual(beforeCounts); // no leak
-    // Make sure we didn't accidentally create a stray enrollment against the
-    // foreign class.
     const foreignEnrollments = await prisma.enrollment.findMany({
       where: { classId: "class_test_2" },
     });
     expect(foreignEnrollments).toHaveLength(0);
+  });
+
+  it("rejects when programmeId is missing", async () => {
+    const result = await callCreateStudent({
+      ...makeInput(),
+      programmeId: "",
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/invalid input/i);
   });
 });

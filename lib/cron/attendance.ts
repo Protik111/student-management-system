@@ -27,14 +27,14 @@ export async function finalizeAttendanceForDate(
   });
   const alreadyHas = new Set(existing.map((e) => e.classId));
 
-  // Of the remaining, only act on classes that have at least one active enrollment.
+  // Of the remaining, only act on classes that have at least one enrolled enrollment.
   const candidates = allClasses.filter((c) => !alreadyHas.has(c.id));
   if (candidates.length === 0) return 0;
 
   const activeEnrollments = await prisma.enrollment.findMany({
     where: {
       classId: { in: candidates.map((c) => c.id) },
-      status: "active",
+      status: "enrolled",
     },
     select: { classId: true },
     distinct: ["classId"],

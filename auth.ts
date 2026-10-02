@@ -8,6 +8,32 @@ import type { Role } from "@/lib/db/types";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    // Node-runtime override of the edge-safe callback. Re-fetches the role from
+    // the DB when the existing JWT is missing one, so a stale/legacy cookie
+    // never produces `session.user.role === undefined` (which would later make
+    // /redirect to /undefined).
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id as string;
+        token.role = (user as { role?: Role }).role;
+        token.schoolId = (user as { schoolId?: string | null }).schoolId ?? null;
+        token.fullName = user.name;
+        token.email = user.email ?? undefined;
+        return token;
+      }
+
+      if (!token.role && token.id) {
+        const fresh = await prisma.userRole.findFirst({
+          where: { userId: token.id as string },
+          select: { role: true },
+        });
+        if (fresh) token.role = fresh.role;
+      }
+      return token;
+    },
+  },
   providers: [
     Credentials({
       name: "credentials",

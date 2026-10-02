@@ -15,10 +15,10 @@ interface EnrollmentStatusControlProps {
 }
 
 const OPTIONS: { value: EnrollmentStatus; label: string }[] = [
-  { value: "active", label: "Mark Active" },
-  { value: "graduated", label: "Mark Graduated" },
-  { value: "transferred", label: "Mark Transferred" },
-  { value: "dropped", label: "Mark Dropped" },
+  { value: "enrolled", label: "Mark Enrolled" },
+  { value: "deferred", label: "Mark Deferred" },
+  { value: "withdrawn", label: "Mark Withdrawn" },
+  { value: "completed", label: "Mark Completed" },
 ];
 
 /**
