@@ -243,6 +243,101 @@ modules ship.
 | `npm run db:studio` | Open Prisma Studio against the dev DB |
 | `npm run db:seed` | Idempotent demo seed |
 
+## After editing the Prisma schema
+
+When you add or change a model (e.g. adding `Programme`, renaming a
+field, swapping an enum), the dev server needs **all four** of these in
+order, or you'll see a confusing runtime error like
+`Cannot read properties of undefined (reading 'findMany')`:
+
+```bash
+# 1. Regenerate the client so `node_modules/.prisma/client/` knows
+#    about the new model.
+npx prisma generate
+
+# 2. Sync the DB. **Use `npx prisma migrate deploy` (not `db:migrate`)
+#    if the change includes a hand-written migration under
+#    `prisma/migrations/`** (e.g. the
+#    `20260102000000_programmes_enrollment_status_sms_ids` migration
+#    that rewrites `EnrollmentStatus`). See the next section for why
+#    `db:migrate` doesn't work in this codebase.
+npx prisma migrate deploy
+
+# 3. Stop `npm run dev` if it's running, then drop Turbopack's
+#    compiled-server-module cache — otherwise it keeps serving the
+#    page bundle that was built against the *old* client.
+rm -rf .next
+
+# 4. Restart.
+npm run dev
+```
+
+### `db:push` vs `migrate deploy` vs `migrate dev` — when to use which
+
+| Situation | Use |
+|-----------|------|
+| Pure additive change (new nullable column, new index, new table) | `npm run db:push` |
+| Adding/changing an enum (drops old values, adds new ones) | `npx prisma migrate deploy` |
+| Hand-written migration in `prisma/migrations/<timestamp>_*` exists for this change | `npx prisma migrate deploy` |
+| Schema and DB are already in sync and you just want to regenerate the client | `npm run db:generate` only |
+
+> **`npm run db:migrate` is intentionally not wired up in this
+> codebase.** It runs `prisma migrate dev`, which uses a shadow
+> database to detect drift. The shadow DB is empty, and the project's
+> earliest migration (`20251001000000_…`) was written to apply on top
+> of an existing schema (created by `db push`) — it never had a
+> baseline `CREATE TABLE` block, so it crashes on the shadow DB with
+> `relation "User" does not exist` (P3018). Use `migrate deploy`
+> instead; it doesn't need a shadow DB and just replays pending
+> migrations onto the real DB.
+
+`db:push` is the fast path: it skips migration history entirely and
+applies the schema diff directly. That's fine for additive work where
+nothing in the DB needs rewriting. It's **not** fine for enum rewrites
+because Prisma's diff engine only knows how to add enum values — when
+you drop values, it can't know which old values map onto the new ones,
+so it fails the cast.
+
+`prisma migrate deploy` runs any hand-written `.sql` files in
+timestamp order and records each in `_prisma_migrations`, so the audit
+trail survives. Our hand-written enum rewrite uses the TEXT → UPDATE →
+DROP TYPE → CREATE TYPE → CAST pattern precisely so this works.
+
+### Adding a baseline migration later
+
+If you want to make `migrate dev` work cleanly in the future, you'd
+need a `prisma/migrations/20240101000000_baseline/migration.sql` that
+contains every `CREATE TABLE` and `CREATE TYPE` statement that the
+schema would auto-generate from a fresh `db push`. That's a sizeable
+chunk of SQL; not worth doing until the project needs the drift
+detection that `migrate dev` provides.
+
+### Why the `.next` clear is non-optional
+
+Turbopack caches the **compiled** version of every server component the
+first time it's hit. The cache captures references to whatever Prisma
+client object existed at that moment. Regenerating the client updates
+`node_modules/.prisma/client/` on disk, but the cached page bundle keeps
+a reference to the old one — so `prisma.<newModel>` stays `undefined`
+even though the freshly-generated client works in plain Node.
+
+You'll see this as `prisma.<model>` being `undefined` for **every**
+page that touches the new model, even though `npx prisma validate`
+passes and `npx prisma generate` succeeds. Stopping the server and
+removing `.next/` is the only fix — the runtime, generated client, and
+schema are otherwise correct.
+
+### What you'll see if you skip the cache clear
+
+| Symptom | Cause |
+|---|---|
+| `Cannot read properties of undefined (reading 'findMany')` on a new model | Stale Turbopack bundle referencing the pre-regen client |
+| TypeScript says `prisma.foo` exists but runtime says it's undefined | Same as above — TS uses the freshly-generated `.d.ts`, runtime uses the cached bundle |
+| `prisma.<oldModel>` works but `prisma.<newModel>` throws | The new model was added since the cache was last built |
+| Test passes, dev fails | Vitest re-imports the client fresh each run; Turbopack does not |
+| `Error: invalid input value for enum "EnrollmentStatus_new": "active"` from `db:push` | Used `db:push` for a hand-written enum rewrite; use `prisma migrate deploy` instead (it executes the data-mapping `.sql` in the migration file) |
+| `Error: P3006 … Migration … failed to apply cleanly to the shadow database … relation "User" does not exist` from `db:migrate` | `migrate dev` uses a shadow DB and this project has no baseline migration (the earliest one was written on top of an existing schema). Use `prisma migrate deploy` instead |
+
 ## Notes & known constraints
 
 - **Postgres via Docker Compose** — local dev expects the `db` service in
