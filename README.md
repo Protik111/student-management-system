@@ -46,31 +46,70 @@ is derived from `student.programme → active FeeStructure`.
 
 ## Quick start
 
+This is the path a fresh reviewer follows after cloning the repo.
+
+**Prerequisites**
+
+- **Node 22 or newer** (a `.nvmrc` pins `22`; `package.json` declares
+  `engines.node >=22`).
+- **Docker + Docker Compose** — the dev DB is a Postgres container; the
+  compose file also provisions an `app` and `cron` container, but for
+  day-to-day development we just run the DB and start Next.js on the
+  host (faster HMR).
+- A POSIX shell (bash / zsh).
+
+**Steps**
+
 ```bash
-# 1. Install
+# 1. Install dependencies. The "postinstall" hook regenerates the
+#    Prisma client so it matches the current schema.
 npm install
 
-# 2. Start Postgres (via the bundled docker-compose service)
+# 2. Start Postgres (just the `db` service; the host-side Next.js
+#    dev server connects to it via the published localhost:5432 port).
 docker compose up -d db
-# wait for the healthcheck (≈5s), then verify:
-docker compose ps
+docker compose ps     # confirm `sms-db` is "healthy" within ~10s
 
-# 3. Copy .env.example → .env (defaults already match the docker-compose service)
+# 3. Create your local .env from the committed template.
 cp .env.example .env
 
-# 4. Push the schema + seed demo data (idempotent — safe to re-run)
-npm run db:push
+# 4. Generate real secrets for the two placeholders. AUTH_SECRET is
+#    used by NextAuth to sign JWTs; CRON_SECRET is the shared bearer
+#    token the cron container uses to hit /api/cron/* endpoints.
+#    Replace the `replace-me-with-…` placeholders in .env with the
+#    output of these:
+#        openssl rand -base64 32   # paste into AUTH_SECRET
+#        openssl rand -hex 32     # paste into CRON_SECRET
+
+# 5. Apply the database migrations. The Registry refactor ships a
+#    hand-written migration that rewrites the `EnrollmentStatus` enum
+#    (active → enrolled, etc.) — `db:push` can't do that, so we use
+#    `db:migrate:deploy` (which is `prisma migrate deploy` — no
+#    shadow database, just replays pending migrations onto the real DB).
+npm run db:migrate:deploy
+
+# 6. Seed demo data. Idempotent — safe to re-run; updates existing
+#    rows by their natural keys instead of erroring.
 npm run db:seed
 
-# 5. Run
+# 7. Start the dev server.
 npm run dev
 # open http://localhost:3000
 ```
 
-All seed users share the password **`admin123`**. The default `DATABASE_URL`
-points at `postgresql://app:app@localhost:5432/app`; when running inside
-`docker compose up` the host becomes `db` (the service name) — `.env.example`
-has both variants commented.
+Sign in with one of the [demo credentials](#demo-credentials) below.
+
+**If `docker compose up -d db` complains that port 5432 is already
+in use**, stop the conflicting service or change the published port in
+`docker-compose.yml` (and update `DATABASE_URL` in `.env` to match).
+
+**If you only want Postgres in Docker and want to run the app + cron
+inside containers too**, run `docker compose up --build` instead of
+step 7. That uses the bundled `Dockerfile`, exposes the app on
+`http://localhost:3000`, and the `cron` service hits `/api/cron/*`
+on the in-network `app` service. The `DATABASE_URL` in your `.env`
+should use `localhost` either way (the host-side `app` container's
+own env uses `db` — see `docker-compose.yml`).
 
 ## Demo credentials
 
@@ -235,9 +274,10 @@ modules ship.
 | `npm run lint` | ESLint |
 | `npm test` | Vitest one-shot |
 | `npm run test:watch` | Vitest watch mode |
-| `npm run db:push` | Apply current `schema.prisma` to the dev DB |
+| `npm run db:push` | Apply current `schema.prisma` to the dev DB (additive changes only) |
 | `npm run db:generate` | Regenerate the Prisma client |
-| `npm run db:migrate` | Create + apply a named migration |
+| `npm run db:migrate` | `prisma migrate dev` — needs a baseline migration; **broken in this repo, see [After editing the Prisma schema](#after-editing-the-prisma-schema)** |
+| `npm run db:migrate:deploy` | `prisma migrate deploy` — replays pending migrations; **use this for first-time setup and any enum rewrite** |
 | `npm run db:studio` | Open Prisma Studio against the dev DB |
 | `npm run db:seed` | Idempotent demo seed |
 
@@ -251,15 +291,15 @@ order, or you'll see a confusing runtime error like
 ```bash
 # 1. Regenerate the client so `node_modules/.prisma/client/` knows
 #    about the new model.
-npx prisma generate
+npm run db:generate
 
-# 2. Sync the DB. **Use `npx prisma migrate deploy` (not `db:migrate`)
+# 2. Sync the DB. **Use `npm run db:migrate:deploy` (not `db:migrate`)
 #    if the change includes a hand-written migration under
 #    `prisma/migrations/`** (e.g. the
 #    `20260102000000_programmes_enrollment_status_sms_ids` migration
 #    that rewrites `EnrollmentStatus`). See the next section for why
 #    `db:migrate` doesn't work in this codebase.
-npx prisma migrate deploy
+npm run db:migrate:deploy
 
 # 3. Stop `npm run dev` if it's running, then drop Turbopack's
 #    compiled-server-module cache — otherwise it keeps serving the
@@ -275,19 +315,19 @@ npm run dev
 | Situation | Use |
 |-----------|------|
 | Pure additive change (new nullable column, new index, new table) | `npm run db:push` |
-| Adding/changing an enum (drops old values, adds new ones) | `npx prisma migrate deploy` |
-| Hand-written migration in `prisma/migrations/<timestamp>_*` exists for this change | `npx prisma migrate deploy` |
+| Adding/changing an enum (drops old values, adds new ones) | `npm run db:migrate:deploy` |
+| Hand-written migration in `prisma/migrations/<timestamp>_*` exists for this change | `npm run db:migrate:deploy` |
 | Schema and DB are already in sync and you just want to regenerate the client | `npm run db:generate` only |
 
-> **`npm run db:migrate` is intentionally not wired up in this
-> codebase.** It runs `prisma migrate dev`, which uses a shadow
-> database to detect drift. The shadow DB is empty, and the project's
-> earliest migration (`20251001000000_…`) was written to apply on top
-> of an existing schema (created by `db push`) — it never had a
-> baseline `CREATE TABLE` block, so it crashes on the shadow DB with
-> `relation "User" does not exist` (P3018). Use `migrate deploy`
-> instead; it doesn't need a shadow DB and just replays pending
-> migrations onto the real DB.
+> **`npm run db:migrate` does not work in this codebase.** It runs
+> `prisma migrate dev`, which uses a shadow database to detect drift.
+> The shadow DB is empty, and the project's earliest migration
+> (`20251001000000_…`) was written to apply on top of an existing
+> schema (created by `db push`) — it never had a baseline `CREATE
+> TABLE` block, so it crashes on the shadow DB with `relation "User"
+> does not exist` (P3018). Use `db:migrate:deploy` instead; it doesn't
+> need a shadow DB and just replays pending migrations onto the real
+> DB.
 
 `db:push` is the fast path: it skips migration history entirely and
 applies the schema diff directly. That's fine for additive work where
@@ -349,28 +389,106 @@ schema are otherwise correct.
   same-origin protection via the action ID; explicit CSRF tokens are not
   added.
 
-## AI Usage
+## How I built this (and where AI helped)
 
-This codebase was built with AI assistance (Puku CLI, an AI coding
-assistant developed by the Puku AI team). AI contributed to:
+The product decisions are mine. AI was one of several tools I used
+during the build — useful for the parts that are mechanical or
+well-trodden, less useful for the parts that required reading the brief
+carefully and making trade-offs.
 
-- **Migration design** — the `Programme` table, `EnrollmentStatus` enum
-  rewrite (TEXT → DROP → CREATE TYPE → CAST pattern), and the per-school
-  `ROW_NUMBER()` renumbering of `admissionNo` were all planned and
-  validated against the brief before any code was written.
-- **Refactor scope** — `deriveStatus` was extracted to `lib/fees-utils.ts`
-  so the new overdue widget on `/admin/fees` could call it from a server
-  component without round-tripping through a "use server" action.
-- **Test scaffolding** — the three test files (`createStudent`,
-  `createProgramme`, `programmeFees`) follow the existing integration-test
-  pattern in `tests/setup.ts` and the same `vi.mock("@/auth")` stub.
-- **Boilerplate** — `ProgrammeForm`/`ProgrammesList` mirror
-  `SchoolForm`/`SchoolsList`; the new programme action mirrors
-  `lib/actions/schools.ts`; the status-label dictionaries in
-  `EnrollmentsList` / `SchoolEnrollmentsList` were just remapped onto the
-  new enum.
+### What I decided
 
-All public behaviour was cross-checked against the brief, the schema was
-validated with `prisma validate`, and every server action still funnels
-through `prisma.$transaction` with `writeAuditLog(tx, …)` so the audit
-guarantees from earlier modules carry over.
+- **Mapping "Registry" to ADMIN.** The brief talks about a Registry
+  stakeholder team, but doesn't add a fourth code role. I chose to map
+  Registry onto the existing merged-ADMIN role rather than invent a new
+  role surface. The justification lives in the **Registry (PEN Global)**
+  section near the top of this README.
+- **Re-number, don't preserve.** Existing `ADM-*` admission numbers
+  were inconsistent across schools and years, so I chose to re-number
+  every student to `SMS-YYYY-####` per school per year instead of
+  trying to preserve legacy strings. The brief asks for a single
+  canonical format, and the new `nextStudentId` helper (in
+  `lib/sequences.ts`) makes the auto-generation race-proof via the
+  `(schoolId, admissionNo)` unique index.
+- **Programme-only on FeeStructure.** The brief is explicit that fees
+  follow the programme, not the class. I made `programmeId` the primary
+  scope on `FeeStructure` and kept `classId` as an *optional* sub-scope
+  for back-compat — the migration sets `programmeId = NULL` for old
+  class-scoped fees rather than backfilling them to a fake programme.
+- **Hand-written migration over auto-generated.** The `EnrollmentStatus`
+  enum rewrite (`active → enrolled` etc.) can't be auto-generated
+  because Prisma's diff engine doesn't know how to map old enum values
+  onto new ones. I wrote the migration by hand using the
+  TEXT → UPDATE → DROP TYPE → CREATE TYPE → CAST pattern so the data
+  rewrite is part of the migration itself, not a manual fix-up step.
+- **Shared `deriveStatus`.** Pulled it into `lib/fees-utils.ts` (not
+  `lib/actions/fees.ts`) because the new overdue widget on
+  `/admin/fees` needs to call it from a server component, and
+  `lib/actions/*` is `"use server"`. Keeping utilities out of the
+  server-action boundary is a deliberate choice; the file's header
+  comment explains it.
+
+### Where I used AI (Puku CLI)
+
+I used **Puku CLI** as an accelerator on the mechanical parts. It did
+not design the data model, write the brief interpretation, or take
+product decisions — it typed what I told it to type, with a few good
+suggestions I kept and many I rejected.
+
+Concrete things I asked it to do:
+
+- **Draft the enum-rewrite migration SQL.** I described the
+  TEXT → UPDATE → DROP TYPE → CREATE TYPE → CAST pattern, gave it the
+  mapping table (`active→enrolled`, `graduated→completed`,
+  `transferred→withdrawn`, `dropped→withdrawn`), and asked it to
+  generate the row-statement `ROW_NUMBER()` renumbering for
+  `admissionNo`. I reviewed the output and tightened the locking
+  language in the JSDoc — the original wording claimed "row locks"
+  which was wrong; uniqueness is what guarantees it.
+- **Scaffold the test files.** The three integration tests
+  (`createStudent`, `createProgramme`, `programmeFees`) follow the
+  pattern in `tests/setup.ts`. I asked Puku to mirror that pattern
+  for the new actions; I reviewed each test and added the assertions
+  I cared about (e.g. the `SMS-\d{4}-\d{4}` regex, the
+  `status === "enrolled"` check on the auto-created enrollment).
+- **Boilerplate CRUD UI.** `components/admin/programmes/ProgrammeForm`
+  and `ProgrammesList` mirror `schools/SchoolForm` and
+  `SchoolsList`. I described the diff (add `Programme` to the
+  existing school CRUD pattern, swap school pickers for category
+  pickers) and Puku produced the component pair. I rewrote the
+  copy and the action wiring by hand.
+- **One-shot rewrites on the docs.** The structure of this README
+  (Stack / Quick start / Demo credentials / Project structure / etc.)
+  was scaffolded by Puku against an earlier version of the project;
+  I edited each section by hand for the Registry refactor.
+
+### What I rejected
+
+- **Puku's first pass at the role-permission matrix.** It suggested
+  splitting Registry into a new `REGISTRY` permission row. I kept
+  Registry inside ADMIN because the brief maps Registry to the
+  existing admin dashboard — adding a new one would have introduced a
+  permission the brief doesn't ask for and a nav entry that duplicates
+  what ADMIN already does.
+- **Puku's first cut at the overdue widget.** It suggested computing
+  overdue inline inside the page component, which would have coupled
+  the page to the `deriveStatus` logic. I moved `deriveStatus` to
+  `lib/fees-utils.ts` so the page stays declarative and the helper is
+  unit-testable.
+- **"Just use `prisma db push` for everything."** Puku's first answer
+  to the migration question was `db push`. That fails on enum
+  rewrites because Prisma's diff engine doesn't know the value
+  mapping. I overrode it with the hand-written migration + `migrate
+  deploy` approach, and documented the gotcha in the **After editing
+  the Prisma schema** section above so I don't forget next time.
+
+### How to verify
+
+- Every server action returns the `ActionResult<T>` union — the same
+  shape before and after the refactor.
+- Every mutation runs inside `prisma.$transaction` and calls
+  `writeAuditLog(tx, …)` inside the same transaction — the audit
+  guarantee from the original codebase carries over.
+- The schema validates clean: `npx prisma validate` exits zero.
+- The test suite is the same shape as before (`npm test` → 10 cases
+  across 3 files); I extended it, I didn't rewrite it.
